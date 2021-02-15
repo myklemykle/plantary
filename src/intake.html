@@ -8,6 +8,10 @@
         <title>Plantary - Sow Art to Reap NFTs</title>
         <!-- Font Awesome icons (free version)-->
         <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.13.0/js/all.min.js" crossorigin="anonymous"></script>
+				<!-- Google Fonts (for mdb) -->
+				<link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" rel="stylesheet" />
+				<!-- MDB (for range selector) -->
+				<link href="https://cdnjs.cloudflare.com/ajax/libs/mdb-ui-kit/3.2.0/mdb.min.css" rel="stylesheet" />
         <!-- Core theme CSS (includes Bootstrap)-->
         <link href="css/styles.css" rel="stylesheet">
         <link href="css/plantary.css" rel="stylesheet">
@@ -51,12 +55,33 @@
                     <div class="divider-custom-line"></div>
                 </div>
                 <!-- Masthead Subheading-->
-                <p class="pre-wrap masthead-subheading font-weight-light mb-0">Upload your digital art to the Plantary</p>
+                <p class="pre-wrap masthead-subheading font-weight-light mb-0">Seed your digital art in the Plantary</p>
             </div>
         </header>
         <section class="page-section portfolio" id="portfolio">
 					<div class="container">
 <form id="sow">
+								<div class="form-group row">
+									<label for="vtype" class="col-3 col-form-label">Plant or Harvest?</label> 
+									<div class="col-9">
+										<div class="custom-control custom-radio custom-control-inline">
+											<input type="radio" id="vtype-plant" name="vtype" class="custom-control-input">
+											<label class="custom-control-label" for="vtype-plant">Plant</label>
+										</div>
+										<div class="custom-control custom-radio custom-control-inline">
+											<input type="radio" id="vtype-harvest" name="vtype" class="custom-control-input">
+											<label class="custom-control-label" for="vtype-harvest">Harvest</label>
+										</div>
+									</div>
+								</div>
+								<div class="form-group row">
+									<label for="rarity" class="col-3 col-form-label">Rarity</label> 
+									<label for="rarity" class="col-2">Omnipresent</label>
+									<div class="col-5 range">
+										<input type="range" class="form-range" min="1" max="10" step="0.5" id="rarity" />
+									</div>
+									<label for="rarity" class="col-2">Nonexistent</label>
+								</div>
 								<!-- standard bootstrap file input -->
 								<!--
 								<div class="form-group row">
@@ -80,16 +105,6 @@
 								<div class="custom-file-container" data-upload-id="myUniqueUploadId">
 									<div class="form-group row">
 										<label for="image2" class="col-3 col-form-label custom-file-container__image-clear">Image (350x350px)</label>
-										<!--
-														<label for="image2">Image (350x350px)
-																<a
-																		href="javascript:void(0)"
-																		class="col-3 col-form-label custom-file-container__image-clear"
-																		title="Clear Image"
-																		>&times;</a
-																		>
-														</label>
-														-->
 										<div class="col-9">
 											<div class="input-group">
 												<div class="input-group-prepend">
@@ -98,8 +113,6 @@
 													</div>
 												</div> 
 												<div class="custom-file">
-														<!-- <label class="custom-file-label" for="image">Choose file</label> -->
-														<!-- <label class="custom-file-container__custom-file custom-file-label" for="image2"> -->
 														<label class="custom-file-label" for="image2">
 																<input
 																		id="image2"
@@ -115,7 +128,6 @@
 																></span>
 														</label>
 												</div>
-												<!-- <div class="custom-file-container__image-preview"></div> -->
 											</div>
 										</div>
 									</div>
@@ -167,10 +179,13 @@
 													<i class="fa fa-calendar"></i>
 												</div>
 											</div> 
-											<input id="created" name="created" type="text" class="form-control" data-provide="datepicker" required="required">
+											<input id="created" name="created" type="text" class="form-control" 
+											data-provide="datepicker" 
+											required="required">
 										</div>
 									</div>
 								</div>
+								<!--
 								<div class="form-group row">
 									<label class="col-3">Adult content?</label> 
 									<div class="col-9">
@@ -180,8 +195,9 @@
 										</div>
 									</div>
 								</div> 
+								-->
 								<div class="form-group row">
-									<label for="arkey" class="col-3 col-form-label">Arweave key (JSON)</label> 
+									<label for="arkey" class="col-3 col-form-label">Arweave wallet</label> 
 									<div class="col-9">
 										<textarea id="arkey" name="arkey" cols="40" rows="3" class="form-control" required="required"></textarea>
 									</div>
@@ -215,6 +231,8 @@
 					<!-- Bootstrap core JS-->
 					<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
 					<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.bundle.min.js"></script>
+					<!-- MDB -->
+					<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mdb-ui-kit/3.2.0/mdb.min.js" ></script>
 					<!-- Third party plugin JS-->
 					<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-easing/1.4.1/jquery.easing.min.js"></script>
 					<!-- Core theme JS-->
@@ -246,7 +264,7 @@
 							// utility: clear the whole form except the key
 						function resetForm(e){
 							e.preventDefault();
-							$('#sow input,textarea:not([name="arkey"])').val('');
+							theForm.find('input,textarea:not([name="arkey"])').val('');
 							clearProgress();
 							resetButton.hide();
 						}
@@ -285,8 +303,17 @@
 							return '<a href="' + url + '" target="_blank">' + url + '</a>';
 						}
 
+						$( document ).ready(function() {
+							// extra form setup:
+							// if date is blank, set to today
+							var created = theForm.find('#created');
+							if (created.val().trim() === "") {
+								created.datepicker('setDate', new Date());
+							}
+						});
+
 							// form submit handler:
-						$('#sow').submit(function(e){
+						theForm.submit(function(e){
 
 							e.preventDefault();
 							console.log(objectifyForm($(e.target).serializeArray())); //DEBUG
@@ -319,8 +346,8 @@
 								nftObj.image = txToUrl(transaction1.id);
 								nftObj.visibility = nftObj.visibility || "safe";
 								delete nftObj.MAX_FILE_SIZE;
-
 								let transaction2 = await arweave.createTransaction({ data: JSON.stringify(nftObj) }, key);
+
 								transaction2.addTag('Content-Type', 'application/json');
 
 								await arweave.transactions.sign(transaction2, key);

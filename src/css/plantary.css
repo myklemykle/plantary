@@ -1,5 +1,10 @@
 @charset "UTF-8";
 
 .footer .veggie .image img {width: 100%;}
+#mainNav { padding-top: 0; padding-bottom: 0;}
 
 form#sow .custom-file-container__custom-file__custom-file-control {top: -1px;}
+form#sow .custom-file-container__image-preview {
+	margin-top: 0px; margin-bottom: 0px;
+	background-size: auto 100%;
+}
