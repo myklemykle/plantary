@@ -179,8 +179,6 @@ impl NEP4 for TokenBank {
         // Q: if owner_tokens is now empty, would it be more NEAR-optimal to delete it from the map?
         prev_owner_tokens.remove(&token_id); 
 
-        // Q: In NEAR, is a transaction guaranteed around a smart method call?
-        // Cuz these three need to be a transaction:
         self.token_to_account.insert(&token_id, &new_owner_id);
         self.account_to_tokens.insert(&new_owner_id, &new_owner_tokens);
         self.account_to_tokens.insert(&token_owner_account_id, &prev_owner_tokens);
