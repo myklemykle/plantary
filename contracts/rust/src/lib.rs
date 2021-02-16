@@ -24,7 +24,7 @@ mod token_bank;
 use token_bank::{NEP4, TokenBank, TokenSet, TokenId};
 
 mod constants;
-use constants::{VeggieType, VeggieSubType, vtypes, P_POOL, H_POOL, P_PRICES, H_PRICES};
+use constants::{VeggieType, VeggieSubType, vtypes, P_POOL, H_POOL, P_PRICES, H_PRICES, seedstates};
 
 ///
 /// the veggie section
@@ -328,7 +328,8 @@ pub struct Seed {
     pub vsubtype: VeggieSubType,
     pub meta_url: String,
     pub rarity: f64,
-    pub edition: u32
+    pub edition: u32,
+    pub state: u8,
 }
 
 pub trait Seeds {
@@ -345,7 +346,15 @@ impl Seeds for PlantaryContract {
     fn create_seed(&mut self, vtype:VeggieType, vsubtype:VeggieSubType, meta_url:String, rarity:f64, edition:u32) 
             -> SeedId {
         self.assert_admin();
-        let mut s = Seed { sid: 0, vtype:vtype, vsubtype:vsubtype, meta_url:meta_url, rarity:rarity, edition:edition };
+        let mut s = Seed { 
+            sid: 0, 
+            vtype:vtype, 
+            vsubtype:vsubtype, 
+            meta_url:meta_url, 
+            rarity:rarity, 
+            edition:edition,
+            state: seedstates::WAITING 
+        };
 
         // generate a seed-unique id
         let mut rng: ChaCha8Rng = Seeder::from(env::random_seed()).make_rng();
@@ -532,7 +541,7 @@ mod tests {
     use super::*;
     use near_sdk::MockedBlockchain;
     use near_sdk::{testing_env, VMContext, Balance};
-    use constants::{vtypes, ptypes};
+    use constants::{vtypes, ptypes, seedstates};
 
     fn to_ynear(near: Balance) -> Balance {
         near * 10u128.pow(24)
@@ -608,7 +617,13 @@ mod tests {
         testing_env!(get_context(robert(), 0));
         let mut contract = PlantaryContract::new(robert());
         let t = Seed {
-            sid: 0, vtype: vtypes::PLANT, vsubtype: ptypes::ORACLE, meta_url: "http://google.com".to_string(), rarity: 3.14, edition: 1
+            sid: 0, 
+            vtype: vtypes::PLANT, 
+            vsubtype: ptypes::ORACLE, 
+            meta_url: "http://google.com".to_string(), 
+            rarity: 3.14, 
+            edition: 1,
+            state: seedstates::WAITING,
         };
         // testing create, get
         let sid = contract.create_seed(t.vtype, t.vsubtype, t.meta_url.clone(), t.rarity, t.edition);

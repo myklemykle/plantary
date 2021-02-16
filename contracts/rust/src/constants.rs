@@ -52,6 +52,12 @@ pub const H_PRICES: [Balance; 7] = [
     50
 ];
 
+// states of a seed
+pub mod seedstates {
+    pub const LIVE: u8 = 0;
+    pub const WAITING: u8 = 1;
+}
+
 // nested array of meta_urls for possible plants!
 // array index == PlantType (an int)
 // (for demo only ... this should be a web data struct someplace ...)
