@@ -75,6 +75,21 @@
 									</div>
 								</div>
 								<div class="form-group row">
+									<label for="vsubtype" class="col-3 col-form-label">Type</label> 
+									<div class="col-9">
+										<select class="form-control" id="type">
+											<option value="1">Oracle</option>
+											<option value="2">Portrait</option>
+											<option value="3">Money</option>
+											<!--
+											<option value="4">Compliment</option>
+											<option value="5">Insult</option>
+											<option value="6">Seed</option>
+											-->
+										</select>
+									</div>
+								</div>
+								<div class="form-group row">
 									<label for="rarity" class="col-3 col-form-label">Rarity</label> 
 									<label for="rarity" class="col-2">Omnipresent</label>
 									<div class="col-5 range">
@@ -235,8 +250,6 @@
 					<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mdb-ui-kit/3.2.0/mdb.min.js" ></script>
 					<!-- Third party plugin JS-->
 					<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-easing/1.4.1/jquery.easing.min.js"></script>
-					<!-- Core theme JS-->
-					<!-- script src="js/scripts.js"></script -->
 					<!-- datepicker -->
 					<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.9.0/js/bootstrap-datepicker.min.js" integrity="sha512-T/tUfKSV1bihCnd+MxKD0Hm1uBBroVYBOYSk1knyvQ9VyZJpc/ALb4P0r6ubwVPSGB2GvjeoMAJJImBG12TiaQ==" crossorigin="anonymous"></script>
 					<!-- file upload with preview -->
@@ -246,10 +259,15 @@
 					<script>
 							// Deploy a Plantary seed genome to Arweave:
 
+					$( document ).ready(function() {
+							///////////////////////
+							// globals 
+							//
 							// jq find stuff:
 						let theForm = $('#sow');
 						let progressLog = $('#progress');
 						let progressBlock =	$('#progressblock');
+						let resetButton = $('#formResetButton');
 
 							// utility: convert form to json
 						function objectifyForm(formArray) {
@@ -268,14 +286,11 @@
 							clearProgress();
 							resetButton.hide();
 						}
-						let resetButton = $('#formResetButton');
-						resetButton.click(resetForm);
 
 							// utility: log infos to progress block
 						function logProgress(s){
 							progressBlock.show(); progressLog.append(s + "<br\>"); console.log(s);
 						}
-
 						function clearProgress(){
 							progressBlock.hide(); progressLog.empty();
 						}
@@ -303,14 +318,14 @@
 							return '<a href="' + url + '" target="_blank">' + url + '</a>';
 						}
 
-						$( document ).ready(function() {
-							// extra form setup:
-							// if date is blank, set to today
-							var created = theForm.find('#created');
-							if (created.val().trim() === "") {
-								created.datepicker('setDate', new Date());
-							}
-						});
+						// form setup:
+						resetButton.click(resetForm);
+
+						// if date is blank, set to today
+						var created = theForm.find('#created');
+						if (created.val().trim() === "") {
+							created.datepicker('setDate', new Date());
+						}
 
 							// form submit handler:
 						theForm.submit(function(e){
@@ -369,6 +384,7 @@
 							// maybe this buffer already exists in upload, but i can't find it ...
 							reader.readAsArrayBuffer(imageFile); // triggers reader.load ...
 						});
+					});
 
 				</script>
 			</body>
