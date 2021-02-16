@@ -8,7 +8,7 @@
 ///
 
 use near_sdk::{env, near_bindgen, AccountId, Balance, json_types};
-use near_sdk::collections::UnorderedMap;
+use near_sdk::collections::{UnorderedMap, UnorderedSet};
 
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::serde::Serialize;
@@ -315,6 +315,125 @@ impl PlantaryContract {
     }
 }
 
+// seed section:
+// seeds are the NFT-art records that get minted;
+// they don't have a veggieID yet, and they can express rarity, editions, etc.
+
+pub type SeedId = u64;
+
+#[derive(PartialEq, Clone, Debug, Serialize, BorshDeserialize, BorshSerialize)]
+pub struct Seed {
+    pub sid: SeedId,
+    pub vtype: VeggieType,
+    pub vsubtype: VeggieSubType,
+    pub meta_url: String,
+    pub rarity: f64,
+    pub edition: u32
+}
+
+pub trait Seeds {
+    fn create_seed(&mut self, vtype:VeggieType, vsubtype:VeggieSubType, meta_url:String, rarity:f64, edition:u32) 
+        -> SeedId;
+    fn update_seed(&mut self, seed: Seed) 
+        -> Seed;
+    fn get_seed(&self, sid: SeedId) 
+        -> Option<Seed>;
+    fn delete_seed(&mut self, sid: SeedId);
+}
+
+impl Seeds for PlantaryContract {
+    fn create_seed(&mut self, vtype:VeggieType, vsubtype:VeggieSubType, meta_url:String, rarity:f64, edition:u32) 
+            -> SeedId {
+        self.assert_admin();
+        let mut s = Seed { sid: 0, vtype:vtype, vsubtype:vsubtype, meta_url:meta_url, rarity:rarity, edition:edition };
+
+        // generate a seed-unique id
+        let mut rng: ChaCha8Rng = Seeder::from(env::random_seed()).make_rng();
+        loop { 
+            s.sid = rng.gen();
+            match self.seeds.get(&s.sid) {
+                None => { break; }
+                Some(_) => { continue; }
+            }
+        }
+        
+        // store:
+        self.seeds.insert(&s.sid, &s); 
+
+        // index:
+        // This was created at init for the two known vtypes, so can't fail.
+        let mut seeds_of_type = self.seed_index.get(&vtype).unwrap();
+        // However, these are created on the fly as subtypes are added, so may not exist yet.
+        let seed_set = seeds_of_type.get(&vsubtype);
+        match seed_set {
+            Some(mut set) => { set.insert(&s.sid); } ,
+            None => {
+                // no seeds of this subtype have been added before, so:
+                let mut name = b"seedidx".to_vec();
+                name.push(vsubtype);
+                let mut new_set = UnorderedSet::<SeedId>::new(name);
+                new_set.insert(&s.sid);
+                seeds_of_type.insert(&vsubtype, &new_set);
+            }
+        };
+
+        s.sid
+    }
+
+
+    fn update_seed(&mut self, s: Seed) -> Seed{
+        self.assert_admin();
+        
+        let old_seed = self.seeds.get(&s.sid);
+        match old_seed {
+            None => {
+                // seed must already exist
+                env::panic(b"seed not found");
+            },
+            Some(os) => {
+                //  disallow changing of vtype or vsubtype!
+                if (os.vtype != s.vtype) || (os.vsubtype != s.vsubtype)  {
+                    env::panic(b"cannot change seed types");
+                }
+                // reinsert on the same ID to update.
+                self.seeds.insert(&s.sid, &s); 
+                // (index already exists)
+            }
+        }
+
+        s
+    }
+
+    fn get_seed(&self, sid: SeedId) -> Option<Seed>{
+        self.assert_admin();
+        self.seeds.get(&sid)
+    }
+
+    fn delete_seed(&mut self, sid: SeedId) {
+        self.assert_admin();
+        self.seeds.remove(&sid);
+    }
+}
+
+// Access Control section ...
+
+trait AccessControl {
+    fn is_admin(&self, id: AccountId) -> bool; // test
+    fn assert_admin(&self); // panic if not.
+}
+
+impl AccessControl for PlantaryContract {
+    fn is_admin(&self, id: AccountId) -> bool {
+        // simplest solution: owner is admin
+        self.owner_id == id
+    }
+    fn assert_admin(&self) {
+        if self.owner_id != env::predecessor_account_id() {
+            env::panic(b"Access Denied");
+        }
+    }
+}
+
 // Our main contract object is PlantaryContract
 
 #[near_bindgen]
@@ -326,11 +445,17 @@ pub struct PlantaryContract {
     pub owner_id: AccountId,
     // metadata storage
     pub veggies: UnorderedMap<TokenId, Veggie>,
+    // seed storage
+    pub seeds: UnorderedMap<SeedId, Seed>,
+    // seed index: umap of umaps of sets: [vtype][vsubtype] == list of SeedIds
+    // TODO: refactor to a (very short) array of umaps of sets, since there are only 2 integer
+    // vtypes
+    pub seed_index: UnorderedMap<VeggieType, UnorderedMap<VeggieSubType, UnorderedSet<SeedId>>>,
 }
 
 impl Default for PlantaryContract {
     fn default() -> Self {
-        panic!("plantary should be initialized before usage")
+        env::panic(b"plantary should be initialized before usage");
     }
 }
 
@@ -341,10 +466,20 @@ impl PlantaryContract {
     pub fn new(owner_id: AccountId) -> Self {
         assert!(env::is_valid_account_id(owner_id.as_bytes()), "Owner's account ID is invalid.");
         assert!(!env::state_exists(), "Already initialized");
+        let vs1 = UnorderedMap::new(b"pSeedIdx".to_vec());
+        let vs2 = UnorderedMap::new(b"hSeedIdx".to_vec());
+        let mut vt = UnorderedMap::new(b"seedIdx".to_vec());
+        vt.insert(&vtypes::PLANT, &vs1);
+        vt.insert(&vtypes::HARVEST, &vs2);
         Self {
             token_bank: TokenBank::new(),
             owner_id,
             veggies: UnorderedMap::new(b"veggies".to_vec()),
+            seeds: UnorderedMap::new(b"seeds".to_vec()),
+            //seed_index: vec![ Vec::<VeggieSubType>; 4] 
+                // (Note: dimension should be 2 not 4, but my vtypes are already 1 and 2, not 0 and 1.
+                // Revisit if storage becomes a problem.)
+            seed_index: vt,
         }
     }
 
@@ -436,6 +571,67 @@ mod tests {
         }
     }
 
+    // access control tests:
+    // test that mike can't admin robert's contract
+    #[test]
+    #[should_panic(
+        expected = r#"Access Denied"#
+    )]
+    fn assert_admin() {
+        testing_env!(get_context(joe(), 0));
+        // owner == admin == robert
+        let contract = PlantaryContract::new(robert());
+
+        // this should panic because current_account_id == joe
+        contract.assert_admin();
+    }
+
+    #[test]
+    fn is_admin() {
+        testing_env!(get_context(joe(), 0));
+        // owner == admin == robert
+        let contract = PlantaryContract::new(robert());
+
+        // So this should return true:
+        assert!(contract.is_admin(robert()), "robert is not robert");
+
+        // And this should return false:
+        assert!(! contract.is_admin(mike()), "mike is robert");
+    }
+
+
+    // seed tests:
+
+    // test we can create & get, and that we can't get what we haven't created
+    #[test]
+    fn create_get_seed(){
+        testing_env!(get_context(robert(), 0));
+        let mut contract = PlantaryContract::new(robert());
+        let t = Seed {
+            sid: 0, vtype: vtypes::PLANT, vsubtype: ptypes::ORACLE, meta_url: "http://google.com".to_string(), rarity: 3.14, edition: 1
+        };
+        // testing create, get
+        let sid = contract.create_seed(t.vtype, t.vsubtype, t.meta_url.clone(), t.rarity, t.edition);
+        let seed = contract.get_seed(sid).unwrap();
+        assert_eq!(seed.sid, sid, "bad seed ID");
+        assert_eq!(seed.vtype, t.vtype, "bad vtype");
+        assert_eq!(seed.vsubtype, t.vsubtype, "bad vsubtype");
+        assert_eq!(seed.meta_url, t.meta_url, "bad meta_url");
+        assert_eq!(seed.rarity, t.rarity, "bad rarity");
+        assert_eq!(seed.edition, t.edition, "bad edition");
+
+        // testing delete
+        contract.delete_seed(sid);
+        let deleted_seed = contract.get_seed(sid);
+        assert!(deleted_seed.is_none());
+
+        // negative test of get:
+        let seed2 = contract.get_seed(12345);
+        assert!(seed2.is_none());
+    }
+
+    // veggie tests:
+    
     #[test]
     #[should_panic(
         expected = r#"Veggie does not exist."#
@@ -641,185 +837,185 @@ mod tests {
     // From here down I've just duplicated the unit tests in TokenBank.rs ,
     // to test our wrapper methods around that object.
 
-        #[test]
-        fn grant_access() {
-            let context = get_context(robert(), 0);
-            testing_env!(context);
-            let mut tb = TokenBank::new();
-            let length_before = tb.account_gives_access.len();
-            assert_eq!(0, length_before, "Expected empty account access Map.");
-            tb.grant_access(mike());
-            tb.grant_access(joe());
-            let length_after = tb.account_gives_access.len();
-            assert_eq!(1, length_after, "Expected an entry in the account's access Map.");
-            let predecessor_hash = env::sha256(robert().as_bytes());
-            let num_grantees = tb.account_gives_access.get(&predecessor_hash).unwrap();
-            assert_eq!(2, num_grantees.len(), "Expected two accounts to have access to predecessor.");
-        }
+    #[test]
+    fn grant_access() {
+        let context = get_context(robert(), 0);
+        testing_env!(context);
+        let mut tb = TokenBank::new();
+        let length_before = tb.account_gives_access.len();
+        assert_eq!(0, length_before, "Expected empty account access Map.");
+        tb.grant_access(mike());
+        tb.grant_access(joe());
+        let length_after = tb.account_gives_access.len();
+        assert_eq!(1, length_after, "Expected an entry in the account's access Map.");
+        let predecessor_hash = env::sha256(robert().as_bytes());
+        let num_grantees = tb.account_gives_access.get(&predecessor_hash).unwrap();
+        assert_eq!(2, num_grantees.len(), "Expected two accounts to have access to predecessor.");
+    }
 
-        #[test]
-        #[should_panic(
-            expected = r#"Access does not exist."#
-        )]
-        fn revoke_access_and_panic() {
-            let context = get_context(robert(), 0);
-            testing_env!(context);
-            let mut tb = TokenBank::new();
-            tb.revoke_access(joe());
-        }
+    #[test]
+    #[should_panic(
+        expected = r#"Access does not exist."#
+    )]
+    fn revoke_access_and_panic() {
+        let context = get_context(robert(), 0);
+        testing_env!(context);
+        let mut tb = TokenBank::new();
+        tb.revoke_access(joe());
+    }
 
-        #[test]
-        fn add_revoke_access_and_check() {
-            // Joe grants access to Robert
-            let mut context = get_context(joe(), 0);
-            testing_env!(context);
-            let mut tb = TokenBank::new();
-            tb.grant_access(robert());
+    #[test]
+    fn add_revoke_access_and_check() {
+        // Joe grants access to Robert
+        let mut context = get_context(joe(), 0);
+        testing_env!(context);
+        let mut tb = TokenBank::new();
+        tb.grant_access(robert());
 
-            // does Robert have access to Joe's account? Yes.
-            context = get_context(robert(), env::storage_usage());
-            testing_env!(context);
-            let mut robert_has_access = tb.check_access(&joe());
-            assert_eq!(true, robert_has_access, "After granting access, check_access call failed.");
+        // does Robert have access to Joe's account? Yes.
+        context = get_context(robert(), env::storage_usage());
+        testing_env!(context);
+        let mut robert_has_access = tb.check_access(&joe());
+        assert_eq!(true, robert_has_access, "After granting access, check_access call failed.");
 
-            // Joe revokes access from Robert
-            context = get_context(joe(), env::storage_usage());
-            testing_env!(context);
-            tb.revoke_access(robert());
+        // Joe revokes access from Robert
+        context = get_context(joe(), env::storage_usage());
+        testing_env!(context);
+        tb.revoke_access(robert());
 
-            // does Robert have access to Joe's account? No
-            context = get_context(robert(), env::storage_usage());
-            testing_env!(context);
-            robert_has_access = tb.check_access(&joe());
-            assert_eq!(false, robert_has_access, "After revoking access, check_access call failed.");
-        }
+        // does Robert have access to Joe's account? No
+        context = get_context(robert(), env::storage_usage());
+        testing_env!(context);
+        robert_has_access = tb.check_access(&joe());
+        assert_eq!(false, robert_has_access, "After revoking access, check_access call failed.");
+    }
 
-        #[test]
-        fn mint_token_get_token_owner() {
-            let context = get_context(robert(), 0);
-            testing_env!(context);
-            let mut tb = TokenBank::new();
-            tb.mint_token(mike(), 19u64);
-            let owner = tb.get_token_owner(19u64);
-            assert_eq!(mike(), owner, "Unexpected token owner.");
-        }
+    #[test]
+    fn mint_token_get_token_owner() {
+        let context = get_context(robert(), 0);
+        testing_env!(context);
+        let mut tb = TokenBank::new();
+        tb.mint_token(mike(), 19u64);
+        let owner = tb.get_token_owner(19u64);
+        assert_eq!(mike(), owner, "Unexpected token owner.");
+    }
 
-        #[test]
-        #[should_panic(
-            expected = r#"Attempt to transfer a token with no access."#
-        )]
-        fn transfer_from_with_no_access_should_fail() {
-            // Mike owns the token.
-            // Robert is trying to transfer it to Robert's account without having access.
-            let context = get_context(robert(), 0);
-            testing_env!(context);
-            let mut tb = TokenBank::new();
-            let token_id = 19u64;
-            tb.mint_token(mike(), token_id);
-            tb.transfer_from(mike(), robert(), token_id.clone());
-        }
+    #[test]
+    #[should_panic(
+        expected = r#"Attempt to transfer a token with no access."#
+    )]
+    fn transfer_from_with_no_access_should_fail() {
+        // Mike owns the token.
+        // Robert is trying to transfer it to Robert's account without having access.
+        let context = get_context(robert(), 0);
+        testing_env!(context);
+        let mut tb = TokenBank::new();
+        let token_id = 19u64;
+        tb.mint_token(mike(), token_id);
+        tb.transfer_from(mike(), robert(), token_id.clone());
+    }
 
-        #[test]
-        fn transfer_from_with_escrow_access() {
-            // Escrow account: robert.testnet
-            // Owner account: mike.testnet
-            // New owner account: joe.testnet
-            let mut context = get_context(mike(), 0);
-            testing_env!(context);
-            let mut tb = TokenBank::new();
-            let token_id = 19u64;
-            tb.mint_token(mike(), token_id);
-            // Mike grants access to Robert
-            tb.grant_access(robert());
+    #[test]
+    fn transfer_from_with_escrow_access() {
+        // Escrow account: robert.testnet
+        // Owner account: mike.testnet
+        // New owner account: joe.testnet
+        let mut context = get_context(mike(), 0);
+        testing_env!(context);
+        let mut tb = TokenBank::new();
+        let token_id = 19u64;
+        tb.mint_token(mike(), token_id);
+        // Mike grants access to Robert
+        tb.grant_access(robert());
 
-            // Robert transfers the token to Joe
-            context = get_context(robert(), env::storage_usage());
-            testing_env!(context);
-            tb.transfer_from(mike(), joe(), token_id.clone());
+        // Robert transfers the token to Joe
+        context = get_context(robert(), env::storage_usage());
+        testing_env!(context);
+        tb.transfer_from(mike(), joe(), token_id.clone());
 
-            // Check new owner
-            let owner = tb.get_token_owner(token_id.clone());
-            assert_eq!(joe(), owner, "Token was not transferred after transfer call with escrow.");
-        }
+        // Check new owner
+        let owner = tb.get_token_owner(token_id.clone());
+        assert_eq!(joe(), owner, "Token was not transferred after transfer call with escrow.");
+    }
 
-        #[test]
-        #[should_panic(
-            expected = r#"Attempt to transfer a token from wrong owner."#
-        )]
-        fn transfer_from_with_escrow_access_wrong_owner_id() {
-            // Escrow account: robert.testnet
-            // Owner account: mike.testnet
-            // New owner account: joe.testnet
-            let mut context = get_context(mike(), 0);
-            testing_env!(context);
-            let mut tb = TokenBank::new();
-            let token_id = 19u64;
-            tb.mint_token(mike(), token_id);
-            // Mike grants access to Robert
-            tb.grant_access(robert());
+    #[test]
+    #[should_panic(
+        expected = r#"Attempt to transfer a token from wrong owner."#
+    )]
+    fn transfer_from_with_escrow_access_wrong_owner_id() {
+        // Escrow account: robert.testnet
+        // Owner account: mike.testnet
+        // New owner account: joe.testnet
+        let mut context = get_context(mike(), 0);
+        testing_env!(context);
+        let mut tb = TokenBank::new();
+        let token_id = 19u64;
+        tb.mint_token(mike(), token_id);
+        // Mike grants access to Robert
+        tb.grant_access(robert());
 
-            // Robert transfers the token to Joe
-            context = get_context(robert(), env::storage_usage());
-            testing_env!(context);
-            tb.transfer_from(robert(), joe(), token_id.clone());
-        }
+        // Robert transfers the token to Joe
+        context = get_context(robert(), env::storage_usage());
+        testing_env!(context);
+        tb.transfer_from(robert(), joe(), token_id.clone());
+    }
 
-        #[test]
-        fn transfer_from_with_your_own_token() {
-            // Owner account: robert.testnet
-            // New owner account: joe.testnet
+    #[test]
+    fn transfer_from_with_your_own_token() {
+        // Owner account: robert.testnet
+        // New owner account: joe.testnet
 
-            testing_env!(get_context(robert(), 0));
-            let mut tb = TokenBank::new();
-            let token_id = 19u64;
-            tb.mint_token(robert(), token_id);
+        testing_env!(get_context(robert(), 0));
+        let mut tb = TokenBank::new();
+        let token_id = 19u64;
+        tb.mint_token(robert(), token_id);
 
-            // Robert transfers the token to Joe
-            tb.transfer_from(robert(), joe(), token_id.clone());
+        // Robert transfers the token to Joe
+        tb.transfer_from(robert(), joe(), token_id.clone());
 
-            // Check new owner
-            let owner = tb.get_token_owner(token_id.clone());
-            assert_eq!(joe(), owner, "Token was not transferred after transfer call with escrow.");
-        }
+        // Check new owner
+        let owner = tb.get_token_owner(token_id.clone());
+        assert_eq!(joe(), owner, "Token was not transferred after transfer call with escrow.");
+    }
 
-        #[test]
-        #[should_panic(
-            expected = r#"Attempt to call transfer on tokens belonging to another account."#
-        )]
-        fn transfer_with_escrow_access_fails() {
-            // Escrow account: robert.testnet
-            // Owner account: mike.testnet
-            // New owner account: joe.testnet
-            let mut context = get_context(mike(), 0);
-            testing_env!(context);
-            let mut tb = TokenBank::new();
-            let token_id = 19u64;
-            tb.mint_token(mike(), token_id);
-            // Mike grants access to Robert
-            tb.grant_access(robert());
+    #[test]
+    #[should_panic(
+        expected = r#"Attempt to call transfer on tokens belonging to another account."#
+    )]
+    fn transfer_with_escrow_access_fails() {
+        // Escrow account: robert.testnet
+        // Owner account: mike.testnet
+        // New owner account: joe.testnet
+        let mut context = get_context(mike(), 0);
+        testing_env!(context);
+        let mut tb = TokenBank::new();
+        let token_id = 19u64;
+        tb.mint_token(mike(), token_id);
+        // Mike grants access to Robert
+        tb.grant_access(robert());
 
-            // Robert transfers the token to Joe
-            context = get_context(robert(), env::storage_usage());
-            testing_env!(context);
-            tb.transfer(joe(), token_id.clone());
-        }
+        // Robert transfers the token to Joe
+        context = get_context(robert(), env::storage_usage());
+        testing_env!(context);
+        tb.transfer(joe(), token_id.clone());
+    }
 
-        #[test]
-        fn transfer_with_your_own_token() {
-            // Owner account: robert.testnet
-            // New owner account: joe.testnet
+    #[test]
+    fn transfer_with_your_own_token() {
+        // Owner account: robert.testnet
+        // New owner account: joe.testnet
 
-            testing_env!(get_context(robert(), 0));
-            let mut tb = TokenBank::new();
-            let token_id = 19u64;
-            tb.mint_token(robert(), token_id);
+        testing_env!(get_context(robert(), 0));
+        let mut tb = TokenBank::new();
+        let token_id = 19u64;
+        tb.mint_token(robert(), token_id);
 
-            // Robert transfers the token to Joe
-            tb.transfer(joe(), token_id.clone());
+        // Robert transfers the token to Joe
+        tb.transfer(joe(), token_id.clone());
 
-            // Check new owner
-            let owner = tb.get_token_owner(token_id.clone());
-            assert_eq!(joe(), owner, "Token was not transferred after transfer call with escrow.");
-        }
+        // Check new owner
+        let owner = tb.get_token_owner(token_id.clone());
+        assert_eq!(joe(), owner, "Token was not transferred after transfer call with escrow.");
+    }
 }
 
