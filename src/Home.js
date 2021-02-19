@@ -3,54 +3,9 @@ import { connect, Contract, keyStores, WalletConnection } from 'near-api-js'
 import { login, logout, mintPlant, vtypes, ptypes } from './utils'
 import { Veggies } from './Veggies'
 import getConfig from './config'
+import { MineOrWallet, WalletLink, AccountOrWallet, MintPlantButton } from './walletComponents'
 
 const nearConfig = getConfig(process.env.NODE_ENV || 'development')
-
-function AccountOrWallet() {
-	if (window.walletConnection.isSignedIn()) 
-		return window.walletConnection.getAccountId();
-	else
-		return "CONNECT WALLET";
-}
-
-function MineOrWallet() {
-	if (window.walletConnection.isSignedIn()) 
-		return "MY PLANTARY";
-	else
-		return "CONNECT WALLET";
-}
-
-function WalletLink() {
-  function handleClick(e) {
-    e.preventDefault();
-		if (!window.walletConnection.isSignedIn()) {
-			login();
-		} else {
-			logout();
-		}
-  }
-
-	let faIcon = window.walletConnection.isSignedIn() ? "fa-sign-out-alt" : "fa-cog";
-
-  return (
-		<a href="#" className="btn btn-outline-light btn-social mx-1" onClick={handleClick} ><i className={'fas ' + faIcon}></i></a>
-  );
-}
-
-function MintPlantButton(props){
-  function handleClick(e) {
-    e.preventDefault();
-		if (window.walletConnection.isSignedIn()) {
-			mintPlant(props.pType, props.price);
-		} else {
-			login();
-		}
-	}
-
-	return (
-		<button className="btn btn-primary" href="#" onClick={handleClick} data-dismiss="modal"><i className="fas fa-seedling"></i> Mint Plant</button>
-	)
-}
 
 export function Home() {
 	return (

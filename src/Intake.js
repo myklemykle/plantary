@@ -3,6 +3,7 @@ import React from 'react'
 import ReactDOM from 'react-dom'
 import { connect, Contract, keyStores, WalletConnection } from 'near-api-js'
 import { login, logout, ptypes, initContract } from './utils'
+import { AccountOrWallet, WalletLink } from './walletComponents'
 import getConfig from './config'
 
 const nearConfig = getConfig(process.env.NODE_ENV || 'development')
@@ -96,6 +97,7 @@ class Intake extends React.Component {
 		super(props);
 		this.state = {
 		};
+		this.handleSubmit = this.handleSubmit.bind(this);
 	}
 
 	// attach libraries to DOM after render
@@ -126,6 +128,7 @@ class Intake extends React.Component {
 		if (created.val().trim() === "") {
 			created.datepicker('setDate', new Date());
 		}
+
 	}
 
 		// utility: return link to URL for our tx
@@ -159,7 +162,7 @@ class Intake extends React.Component {
 
 		reader.onload = async function() {
 
-			// Two step process: 
+			// Three step process: 
 			// First is a data-upload of the image to arweave:
 			let transaction1 = await this.arweave.createTransaction({ data: reader.result }, key);
 			transaction1.addTag('Content-Type', imageFile.type);
@@ -234,7 +237,8 @@ class Intake extends React.Component {
 					</header>
 					<section class="page-section portfolio" id="portfolio">
 						<div class="container">
-	<form id="sow">
+									{/* Main Form */}
+							<form id="sow">
 									<div class="form-group row">
 										<label for="vtype" class="col-3 col-form-label">Plant or Harvest?</label> 
 										<div class="col-9">
@@ -252,6 +256,7 @@ class Intake extends React.Component {
 										<label for="vsubtype" class="col-3 col-form-label">Type</label> 
 										<div class="col-9">
 											<select class="form-control" id="type">
+												<option>Choose ...</option>
 												<option value="1">Oracle</option>
 												<option value="2">Portrait</option>
 												<option value="3">Money</option>
@@ -367,9 +372,15 @@ class Intake extends React.Component {
 									</div> 
 									 */}
 									<div class="form-group row">
-										<label for="arkey" class="col-3 col-form-label">Arweave wallet</label> 
+										<label for="arkey" class="col-3 col-form-label">Arweave wallet JSON</label> 
 										<div class="col-9">
 											<textarea id="arkey" name="arkey" cols="40" rows="3" class="form-control" required="required"></textarea>
+										</div>
+									</div>
+									<div class="form-group row">
+										<label for="nearWallet" class="col-3 col-form-label">NEAR login</label> 
+										<div class="col-9">
+											<AccountOrWallet /><WalletLink />
 										</div>
 									</div>
 									<div class="form-group row">
@@ -378,21 +389,7 @@ class Intake extends React.Component {
 										</div>
 									</div>
 	</form>
-									{/*
-									<div id="progressblock" class="row" style="display: none;">
-										<div class="col-3 col-form-label">Deployment progress:</div>
-										<div id="progress" class="col-9">
-										</div>
-									</div>
-									 */}
-									 <ProgressBlock />
-									{/*
-									<div id="formResetButton" class="form-group row" style="display:inline;">
-										<div class="offset-3 col-9">
-											<button name="reset" type="button" class="btn btn-primary">Next!</button>
-										</div>
-									</div>
-									 */}
+									<ProgressBlock />
 								  <ResetButton />
 							</div>
 						</section>
@@ -400,7 +397,7 @@ class Intake extends React.Component {
 
 						{/* Copyright Section */}
 						<section class="copyright py-4 text-center text-white">
-								<div class="container"><small class="pre-wrap">Copyright © Plantary 2020 - Untitled NFT Hackathon</small></div>
+								<div class="container"><small class="pre-wrap">Copyright © Plantary 2021</small></div>
 						</section>
 						{/* Scroll to Top Button (Only visible on small and extra-small screen sizes) */}
 						<div class="scroll-to-top d-lg-none position-fixed"><a class="js-scroll-trigger d-block text-center text-white rounded" href="#page-top"><i class="fa fa-chevron-up"></i></a></div>
