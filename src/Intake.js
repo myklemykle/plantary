@@ -26,6 +26,9 @@ class ProgressBlock extends React.Component {
 			log: this.state.log + s +  "<br\>",
 			display: "inline"
 		}); 
+		// maybe React doesn't render during event handlers?  which is the only place we use this?
+		// Anyway, forcing the issue:
+		this.forceUpdate();
 	}
 
 	clear(){
@@ -153,17 +156,24 @@ class Intake extends React.Component {
 	handleSubmit(e) {
 
 		e.preventDefault();
-		console.log(this.objectifyForm($(e.target).serializeArray())); //DEBUG
 
-
+		// TODO: verify some stuff:
+		// * near wallet is connected
+		// * near user can admin seeds on Plantary
+		// * arweave key is legit
+		
 		var imageFile = this.upload.cachedFileArray[0];
 		var reader = new FileReader();
-		var key = JSON.parse($('#arkey').val());
+		var key = JSON.parse($('#arkey').val()); 
+		var formJSON = this.objectifyForm($(e.target.form).serializeArray());
+		console.log(formJSON);//DEBUG
 
+		// TODO: a simple exception handler around all this, just to display exceptions to screen
 		reader.onload = async function() {
 
-			// Three step process: 
-			// First is a data-upload of the image to arweave:
+			// Three step process.
+			//
+			// Step 1: upload/publish image to arweave:
 			let transaction1 = await this.arweave.createTransaction({ data: reader.result }, key);
 			transaction1.addTag('Content-Type', imageFile.type);
 
@@ -178,8 +188,9 @@ class Intake extends React.Component {
 
 			progress.log("image deployed: " + this.txToLink(transaction1.id));
 
-			// Then a JSON upload that includes the arweave URL of the image:
-			let nftObj = this.objectifyForm( $(e.target).serializeArray());
+			// Step 2: upload/publish JSON metadata (including URL from step 1)
+			let nftObj = formJSON;
+			delete formJSON.arkey;
 			nftObj.image = this.txToUrl(transaction1.id);
 			nftObj.visibility = nftObj.visibility || "safe";
 			delete nftObj.MAX_FILE_SIZE;
@@ -197,11 +208,26 @@ class Intake extends React.Component {
 				await arUploader.uploadChunk();
 				progress.log(`deploying metadata: ${arUploader.pctComplete}% complete, ${arUploader.uploadedChunks}/${arUploader.totalChunks}`);
 			}
+			const meta_url = this.txToLink(transaction2.id);
+			progress.log("metadata deployed: " + meta_url);
 
-			progress.log("metadata deployed: " + this.txToLink(transaction2.id));
+			// Step 3: Create seed record in Plantary contract, including URL from step 2
+			//
+			var seedid = await window.contract.create_seed({
+				vtype: nftObj.vtype,
+				vsubtype: nftObj.vsubtype,
+				meta_url: meta_url,
+				rarity: nftObj.rarity, 
+				// edition: nftObj.edition,
+				edition: 1,
+			});
+
+			progress.log("seed " + seedid + "planted");
+
 			progress.log("done!");
 			resetButton.show();
-		}
+
+		}.bind(this);
 
 		// maybe this buffer already exists in upload, but i can't find it ...
 		reader.readAsArrayBuffer(imageFile); // triggers reader.load ...

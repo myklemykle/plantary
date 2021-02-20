@@ -1,5 +1,5 @@
 import React from 'react'
-import { connect, Contract, keyStores, WalletConnection } from 'near-api-js'
+//import { connect, Contract, keyStores, WalletConnection } from 'near-api-js'
 import { login, logout, mintPlant, vtypes, ptypes } from './utils'
 import { Veggies } from './Veggies'
 import getConfig from './config'
