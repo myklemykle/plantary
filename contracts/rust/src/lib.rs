@@ -335,13 +335,14 @@ pub struct Seed {
 pub trait Seeds {
     fn create_seed(&mut self, vtype:VeggieType, vsubtype:VeggieSubType, meta_url:String, rarity:f64, edition:u32) 
         -> SeedId;
-    fn update_seed(&mut self, seed: Seed) 
-        -> Seed;
+    fn update_seed(&mut self, sid: SeedId, vtype:VeggieType, vsubtype:VeggieSubType, meta_url:String, rarity:f64, edition:u32, state: u8) 
+        -> SeedId;
     fn get_seed(&self, sid: SeedId) 
         -> Option<Seed>;
     fn delete_seed(&mut self, sid: SeedId);
 }
 
+#[near_bindgen]
 impl Seeds for PlantaryContract {
     fn create_seed(&mut self, vtype:VeggieType, vsubtype:VeggieSubType, meta_url:String, rarity:f64, edition:u32) 
             -> SeedId {
@@ -390,10 +391,13 @@ impl Seeds for PlantaryContract {
     }
 
 
-    fn update_seed(&mut self, s: Seed) -> Seed{
+    fn update_seed(&mut self, sid: SeedId, vtype:VeggieType, vsubtype:VeggieSubType, meta_url:String, rarity:f64, edition:u32, state: u8) 
+        ->SeedId{
         self.assert_admin();
+
+        // TODO: validate input
         
-        let old_seed = self.seeds.get(&s.sid);
+        let old_seed = self.seeds.get(&sid);
         match old_seed {
             None => {
                 // seed must already exist
@@ -401,20 +405,31 @@ impl Seeds for PlantaryContract {
             },
             Some(os) => {
                 //  disallow changing of vtype or vsubtype!
-                if (os.vtype != s.vtype) || (os.vsubtype != s.vsubtype)  {
+                if (os.vtype != vtype) || (os.vsubtype != vsubtype)  {
                     env::panic(b"cannot change seed types");
                 }
                 // reinsert on the same ID to update.
-                self.seeds.insert(&s.sid, &s); 
+                let new_seed = Seed {
+                    sid: sid, 
+                    vtype: vtype,
+                    vsubtype: vsubtype,
+                    meta_url: meta_url,
+                    rarity: rarity,
+                    edition: edition,
+                    state: state,
+                };
                 // (index already exists)
+                self.seeds.insert(&sid, &new_seed); 
             }
         }
 
-        s
+        sid
     }
 
     fn get_seed(&self, sid: SeedId) -> Option<Seed>{
-        self.assert_admin();
+        //self.assert_admin();  
+        // view methods are accountless, and all blockchain data is public
+        //anyway ...
         self.seeds.get(&sid)
     }
 
@@ -627,13 +642,19 @@ mod tests {
         };
         // testing create, get
         let sid = contract.create_seed(t.vtype, t.vsubtype, t.meta_url.clone(), t.rarity, t.edition);
-        let seed = contract.get_seed(sid).unwrap();
+        let mut seed = contract.get_seed(sid).unwrap();
         assert_eq!(seed.sid, sid, "bad seed ID");
         assert_eq!(seed.vtype, t.vtype, "bad vtype");
         assert_eq!(seed.vsubtype, t.vsubtype, "bad vsubtype");
         assert_eq!(seed.meta_url, t.meta_url, "bad meta_url");
         assert_eq!(seed.rarity, t.rarity, "bad rarity");
         assert_eq!(seed.edition, t.edition, "bad edition");
+        
+        // testing update
+        seed.meta_url = "http://youtube.com".to_string();
+        seed.rarity = 5.0;
+        seed.edition = 4;
+        assert_eq!(contract.update_seed(sid, seed.vtype, seed.vsubtype, seed.meta_url.clone(), seed.rarity, seed.edition, seed.state), sid, "bad update"); 
 
         // testing delete
         contract.delete_seed(sid);
@@ -644,6 +665,8 @@ mod tests {
         let seed2 = contract.get_seed(12345);
         assert!(seed2.is_none());
     }
+
+    // TODO: update_seed test
 
     // veggie tests:
     
