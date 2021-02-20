@@ -2296,6 +2296,16 @@ boolbase@^1.0.0, boolbase@~1.0.0:
   resolved "https://registry.yarnpkg.com/boolbase/-/boolbase-1.0.0.tgz#68dff5fbe60c51eb37725ea9e3ed310dcc1e776e"
   integrity sha1-aN/1++YMUes3cl6p4+0xDcwed24=
 
+borsh@^0.3.1:
+  version "0.3.1"
+  resolved "https://registry.yarnpkg.com/borsh/-/borsh-0.3.1.tgz#c31c3a149610e37913deada80e89073fb15cf55b"
+  integrity sha512-gJoSTnhwLxN/i2+15Y7uprU8h3CKI+Co4YKZKvrGYUy0FwHWM20x5Sx7eU8Xv4HQqV+7rb4r3P7K1cBIQe3q8A==
+  dependencies:
+    "@types/bn.js" "^4.11.5"
+    bn.js "^5.0.0"
+    bs58 "^4.0.0"
+    text-encoding-utf-8 "^1.0.2"
+
 boxen@^4.2.0:
   version "4.2.0"
   resolved "https://registry.yarnpkg.com/boxen/-/boxen-4.2.0.tgz#e411b62357d6d6d36587c8ac3d5d974daa070e64"
@@ -7125,13 +7135,14 @@ near-api-js@^0.30.0:
     text-encoding-utf-8 "^1.0.2"
     tweetnacl "^1.0.1"
 
-near-api-js@^0.34.0:
-  version "0.34.0"
-  resolved "https://registry.yarnpkg.com/near-api-js/-/near-api-js-0.34.0.tgz#2deba01d877859edb87d9f338b3446e3240d7db2"
-  integrity sha512-wYSPerV5/AcdlMvJ1Ntzxb1RxeiETrLqBplv2yF0/Fi8USXhZV0Kk5svrA1Uxx4OI2diTY46+rvXs7gQqtkgPA==
+near-api-js@^0.36.2, near-api-js@^0.36.3:
+  version "0.36.3"
+  resolved "https://registry.yarnpkg.com/near-api-js/-/near-api-js-0.36.3.tgz#f374ec33ecb774ec5ad19a8e464d679d8b4438d6"
+  integrity sha512-/pWMoUkoP3/8XJRL+uHUReW40XCa31+33tZX2QgACvrMHXJ41HzEK9+RxjaSDsJZ70BtOB4ybfuk4Pj5MEhqCQ==
   dependencies:
     "@types/bn.js" "^4.11.5"
     bn.js "^5.0.0"
+    borsh "^0.3.1"
     bs58 "^4.0.0"
     depd "^2.0.0"
     error-polyfill "^0.1.2"
@@ -7142,10 +7153,10 @@ near-api-js@^0.34.0:
     text-encoding-utf-8 "^1.0.2"
     tweetnacl "^1.0.1"
 
-near-cli@^1.5.0:
-  version "1.5.0"
-  resolved "https://registry.yarnpkg.com/near-cli/-/near-cli-1.5.0.tgz#05ca18178d59608c9c6382616e8ba8bd741caa89"
-  integrity sha512-IeaP7pTsV9dghDPNTFJm28U3FZFoqSnQKuNyiIDL5IGAatOIQGabqt+cvx0I0gBmez+YBaD/wd1agntMRT8fbA==
+near-cli@^1.5.3:
+  version "1.5.3"
+  resolved "https://registry.yarnpkg.com/near-cli/-/near-cli-1.5.3.tgz#0d56d03fd3c3f1045c9272d8641185bd6d6eead9"
+  integrity sha512-0OBu50NFY+UmGVhkD6FSvS4hzXG5v3r93SZFqOpSbX7IQPNTnn0cnGogpZXSqRpK5oKz9mDzQq1CrH7nwiRT8g==
   dependencies:
     ascii-table "0.0.9"
     bn.js "^5.1.1"
@@ -7156,9 +7167,9 @@ near-cli@^1.5.0:
     jest-environment-node "^26.0.0"
     mixpanel "^0.13.0"
     ncp "^2.0.0"
-    near-api-js "^0.34.0"
+    near-api-js "^0.36.3"
     near-seed-phrase "^0.1.0"
-    near-web3-provider "^1.0.0"
+    near-web3-provider "^1.0.6"
     open "^7.0.1"
     rimraf "^3.0.0"
     stoppable "^1.1.0"
@@ -7198,16 +7209,17 @@ near-seed-phrase@^0.1.0:
     near-hd-key "^1.0.0"
     tweetnacl "^1.0.2"
 
-near-web3-provider@^1.0.0:
-  version "1.0.2"
-  resolved "https://registry.yarnpkg.com/near-web3-provider/-/near-web3-provider-1.0.2.tgz#d3a16a3008518ef352579ae23fc0c00105888b39"
-  integrity sha512-s7rwmM5ueu5qsBQT1i8zjH3D7O3nnCSUSuwo42MnOVWCnhiVftUPcIWEFUxeP0LwXJDNnYiRNWorsgs/hNiIVA==
+near-web3-provider@^1.0.6:
+  version "1.1.0"
+  resolved "https://registry.yarnpkg.com/near-web3-provider/-/near-web3-provider-1.1.0.tgz#080d5091112d6110f614ecb9eb7bafcd210f4436"
+  integrity sha512-OFot+fGGh32PfswFqr6lDpiXH0d7hc+HyURsgEJzdW/BW48VKlM/jFYvPaeCUTNCCI+Qww1DNQYnh5xqWXIwYQ==
   dependencies:
     bn.js "^5.1.2"
     bs58 "^4.0.1"
     bsert "0.0.10"
     eth-sig-util "^2.5.3"
-    near-api-js "^0.34.0"
+    near-api-js "^0.36.2"
+    rlp "^2.2.6"
     tweetnacl "^1.0.3"
     web3-provider-engine "^15.0.7"
     web3-utils "^1.2.8"
@@ -8996,7 +9008,7 @@ ripemd160@^2.0.0, ripemd160@^2.0.1:
     hash-base "^3.0.0"
     inherits "^2.0.1"
 
-rlp@^2.0.0, rlp@^2.2.3:
+rlp@^2.0.0, rlp@^2.2.3, rlp@^2.2.6:
   version "2.2.6"
   resolved "https://registry.yarnpkg.com/rlp/-/rlp-2.2.6.tgz#c80ba6266ac7a483ef1e69e8e2f056656de2fb2c"
   integrity sha512-HAfAmL6SDYNWPUOJNrM500x4Thn4PZsEy5pijPh40U9WfNk0z15hUYzO9xVIMAdIHdFtD8CBDHd75Td1g36Mjg==
