@@ -12,6 +12,7 @@ use near_sdk::collections::{UnorderedMap, UnorderedSet};
 
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::serde::Serialize;
+use near_sdk::json_types::U64;
 
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
@@ -319,7 +320,7 @@ impl PlantaryContract {
 // seeds are the NFT-art records that get minted;
 // they don't have a veggieID yet, and they can express rarity, editions, etc.
 
-pub type SeedId = u64;
+pub type SeedId = U64;
 
 #[derive(PartialEq, Clone, Debug, Serialize, BorshDeserialize, BorshSerialize)]
 pub struct Seed {
@@ -339,16 +340,30 @@ pub trait Seeds {
         -> SeedId;
     fn get_seed(&self, sid: SeedId) 
         -> Option<Seed>;
+    fn get_seeds_page(&self, page_size: u16, page: u16)
+        -> Vec<Seed>;
     fn delete_seed(&mut self, sid: SeedId);
 }
 
+    // a group of seed IDs
+pub type SeedIdSet = UnorderedSet<SeedId>; 
+    // a map from vsubtype to seedIdSet
+pub type SeedSubIndex = UnorderedMap< VeggieSubType, SeedIdSet >;
+    // an array of those, indexed by vtype 
+pub type SeedIndex = Vec<SeedSubIndex>;
+
 #[near_bindgen]
 impl Seeds for PlantaryContract {
+
+    //
+    // write methods:
+    //
+    
     fn create_seed(&mut self, vtype:VeggieType, vsubtype:VeggieSubType, meta_url:String, rarity:f64, edition:u32) 
             -> SeedId {
         self.assert_admin();
         let mut s = Seed { 
-            sid: 0, 
+            sid: 0.into(),
             vtype:vtype, 
             vsubtype:vsubtype, 
             meta_url:meta_url, 
@@ -360,7 +375,7 @@ impl Seeds for PlantaryContract {
         // generate a seed-unique id
         let mut rng: ChaCha8Rng = Seeder::from(env::random_seed()).make_rng();
         loop { 
-            s.sid = rng.gen();
+            s.sid = rng.gen::<u64>().into();
             match self.seeds.get(&s.sid) {
                 None => { break; }
                 Some(_) => { continue; }
@@ -372,7 +387,12 @@ impl Seeds for PlantaryContract {
 
         // index:
         // This was created at init for the two known vtypes, so can't fail.
-        let mut seeds_of_type = self.seed_index.get(&vtype).unwrap();
+        //
+        // TODO: make safer; convert known types to known indicies, don't assume the vtype
+        // constants are valid indicies in this array as i do now.
+        //
+        let seeds_of_type = &mut self.seed_index[vtype as usize];
+        //
         // However, these are created on the fly as subtypes are added, so may not exist yet.
         let seed_set = seeds_of_type.get(&vsubtype);
         match seed_set {
@@ -426,20 +446,44 @@ impl Seeds for PlantaryContract {
         sid
     }
 
-    fn get_seed(&self, sid: SeedId) -> Option<Seed>{
-        //self.assert_admin();  
-        // view methods are accountless, and all blockchain data is public
-        //anyway ...
-        self.seeds.get(&sid)
-    }
-
     fn delete_seed(&mut self, sid: SeedId) {
         self.assert_admin();
         self.seeds.remove(&sid);
     }
+
+    //
+    // Note: no security on view methods; 
+    // they are accountless, and all blockchain data is public anyway. 
+    //
+    // view methods:
+    //
+
+    fn get_seed(&self, sid: SeedId) -> Option<Seed>{
+        self.seeds.get(&sid)
+    }
+
+    fn get_seeds_page(&self, page_size: u16, page: u16) -> Vec<Seed>{
+        let count: usize  = self.seeds.len() as usize;
+
+        let seeds_vec = self.seeds.values().collect();
+
+        if page_size == 0 {
+            // try to return all results
+            return seeds_vec;
+        }
+
+        let startpoint: usize = page_size as usize * page as usize;
+        if startpoint > count { return Vec::new(); }
+
+        let mut endpoint: usize  =  startpoint + page_size as usize ;
+        if endpoint > count { endpoint = count; }
+
+        seeds_vec[startpoint .. endpoint].to_vec()
+    }
+
 }
 
-// Access Control section ...
+// Access Control section
 
 trait AccessControl {
     fn is_admin(&self, id: AccountId) -> bool; // test
@@ -471,10 +515,8 @@ pub struct PlantaryContract {
     pub veggies: UnorderedMap<TokenId, Veggie>,
     // seed storage
     pub seeds: UnorderedMap<SeedId, Seed>,
-    // seed index: umap of umaps of sets: [vtype][vsubtype] == list of SeedIds
-    // TODO: refactor to a (very short) array of umaps of sets, since there are only 2 integer
-    // vtypes
-    pub seed_index: UnorderedMap<VeggieType, UnorderedMap<VeggieSubType, UnorderedSet<SeedId>>>,
+    // seed index: a (very short) array of umaps of sets
+    pub seed_index: SeedIndex,
 }
 
 impl Default for PlantaryContract {
@@ -490,20 +532,20 @@ impl PlantaryContract {
     pub fn new(owner_id: AccountId) -> Self {
         assert!(env::is_valid_account_id(owner_id.as_bytes()), "Owner's account ID is invalid.");
         assert!(!env::state_exists(), "Already initialized");
-        let vs1 = UnorderedMap::new(b"pSeedIdx".to_vec());
-        let vs2 = UnorderedMap::new(b"hSeedIdx".to_vec());
+        let vs0 = SeedSubIndex::new(b"seedSub0".to_vec()); // unused
+        let vs1 = SeedSubIndex::new(b"seedSub1".to_vec()); // plants
+        let vs2 = SeedSubIndex::new(b"seedSub2".to_vec()); // harvests
+
         let mut vt = UnorderedMap::new(b"seedIdx".to_vec());
         vt.insert(&vtypes::PLANT, &vs1);
         vt.insert(&vtypes::HARVEST, &vs2);
+
         Self {
             token_bank: TokenBank::new(),
             owner_id,
             veggies: UnorderedMap::new(b"veggies".to_vec()),
             seeds: UnorderedMap::new(b"seeds".to_vec()),
-            //seed_index: vec![ Vec::<VeggieSubType>; 4] 
-                // (Note: dimension should be 2 not 4, but my vtypes are already 1 and 2, not 0 and 1.
-                // Revisit if storage becomes a problem.)
-            seed_index: vt,
+            seed_index: vec![ vs0, vs1, vs2 ]
         }
     }
 
@@ -521,8 +563,7 @@ impl PlantaryContract {
 // Expose NEP-4 interface of TokenBank
 //
 // NOTE: these token_id values are specified by NEP4 as 64-bit unsigned ints,
-// which Javascript will truncate to 58 bits!
-// Nevertheless, this is the NEP4 API provided by NEAR.
+// which Javascript will truncate to 58 bits (if not somehow solved with BigInt)
 #[near_bindgen]
 impl NEP4 for PlantaryContract {
     fn grant_access(&mut self, escrow_account_id: AccountId) {
@@ -632,7 +673,7 @@ mod tests {
         testing_env!(get_context(robert(), 0));
         let mut contract = PlantaryContract::new(robert());
         let t = Seed {
-            sid: 0, 
+            sid: 0.into(),
             vtype: vtypes::PLANT, 
             vsubtype: ptypes::ORACLE, 
             meta_url: "http://google.com".to_string(), 
@@ -662,11 +703,57 @@ mod tests {
         assert!(deleted_seed.is_none());
 
         // negative test of get:
-        let seed2 = contract.get_seed(12345);
+        let seed2 = contract.get_seed(12345.into());
         assert!(seed2.is_none());
     }
 
     // TODO: update_seed test
+
+    #[test]
+    fn get_seeds_page(){
+        let c = get_context(robert(), 0);
+        testing_env!(c);
+        let mut contract = PlantaryContract::new(robert());
+
+        // plant 23 seeds
+        for n in 0..23 {
+            contract.create_seed(
+                vtypes::PLANT,
+                ptypes::ORACLE,
+                "http://google.com".to_string(),
+                3.14,
+                n,
+            );
+        }
+
+        // test seeds:
+        // get three pages of size 7
+        // check that they are all full
+        for p in 0..3 {
+            let seeds = contract.get_seeds_page(7,p);
+            assert_eq!(seeds.len(), 7, "bad seed page size");
+        }
+
+        // get another page of size 7
+        // check that it is only 2 items long
+        let seeds = contract.get_seeds_page(7,3);
+        assert_eq!(seeds.len(), 2, "bad seed end page size");
+
+        // get yet another page, should be empty.
+        let seeds = contract.get_seeds_page(7,100);
+        assert_eq!(seeds.len(), 0, "bad seed blank page size");
+
+        // check that we can get the whole thing in one big slurp
+        let seeds = contract.get_seeds_page(23,0);
+        assert_eq!(seeds.len(), 23, "bad seed total page size");
+
+        let seeds = contract.get_seeds_page(0,0);
+        assert_eq!(seeds.len(), 23, "bad seed total page size");
+
+        let seeds = contract.get_seeds_page(100,0);
+        assert_eq!(seeds.len(), 23, "bad seed total page size");
+
+    }
 
     // veggie tests:
     

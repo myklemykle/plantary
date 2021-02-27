@@ -75,6 +75,7 @@ export async function initContract() {
 			'get_token_owner',
 			// seed admin:
 			'get_seed',
+			'get_seeds_page',
 		],
     // Change methods can modify the state. But you don't receive the returned value when called.
 		changeMethods: [
@@ -86,20 +87,21 @@ export async function initContract() {
 			'delete_seed',
 		],
   })
+
 }
 
 export function logout() {
-  window.walletConnection.signOut()
-  // reload page
-  window.location.replace(window.location.origin + window.location.pathname)
+	window.walletConnection.signOut()
+	// reload page
+	window.location.replace(window.location.origin + window.location.pathname)
 }
 
 export function login() {
-  // Allow the current app to make calls to the specified contract on the
-  // user's behalf.
-  // This works by creating a new access key for the user's account and storing
-  // the private key in localStorage.
-  window.walletConnection.requestSignIn(nearConfig.contractName)
+	// Allow the current app to make calls to the specified contract on the
+	// user's behalf.
+	// This works by creating a new access key for the user's account and storing
+	// the private key in localStorage.
+	window.walletConnection.requestSignIn(nearConfig.contractName)
 }
 
 export function mintPlant(ptype, price) {
@@ -117,3 +119,5 @@ export function harvestPlant(parent_id, price) {
 		parent_id_json: parent_id.toString()
 	}, 0, amount);
 }
+
+

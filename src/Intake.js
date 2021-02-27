@@ -123,7 +123,6 @@ class Intake extends React.Component {
 		 * plugin doesn't play well with webpack, i think cuz it attaches to jquery via Window ...
 		*/
 		// init datepicker
-		//var created = this.theForm.find('#created');
 		var created = $('#created');
 		created.datepicker();
 		// if date is blank, set to today
@@ -143,30 +142,32 @@ class Intake extends React.Component {
 		return '<a href="' + url + '" target="_blank">' + url + '</a>';
 	}
 
-		// utility: convert form to json
+	// convert jq form value array [{name: foo, val: bar}, {name:lux, val:breem}] to plan obj {foo:bar, lux:breem}
+	//
 	objectifyForm(formArray) {
-		//serialize data function
-		var returnArray = {};
+		var returnObj = {};
 		for (var i = 0; i < formArray.length; i++){
-				returnArray[formArray[i]['name']] = formArray[i]['value'];
+				returnObj[formArray[i]['name']] = formArray[i]['value'];
 		}
-		return returnArray;
+
+		return returnObj;
 	}
 
 	handleSubmit(e) {
 
 		e.preventDefault();
 
-		// TODO: verify some stuff:
-		// * near wallet is connected
-		// * near user can admin seeds on Plantary
-		// * arweave key is legit
+		// TODO: add form verification:
+		// * near wallet is connected?
+		// * user can admin seeds on Plantary?
+		// * arweave key is legit?
 		
 		var imageFile = this.upload.cachedFileArray[0];
 		var reader = new FileReader();
-		var key = JSON.parse($('#arkey').val()); 
-		var formJSON = this.objectifyForm($(e.target.form).serializeArray());
-		console.log(formJSON);//DEBUG
+		var arKey = JSON.parse($('#arkey').val()); 
+		var formObj = this.objectifyForm( $(e.target.form).serializeArray() );
+
+		console.log(formObj);//DEBUG
 
 		// TODO: a simple exception handler around all this, just to display exceptions to screen
 		reader.onload = async function() {
@@ -174,10 +175,10 @@ class Intake extends React.Component {
 			// Three step process.
 			//
 			// Step 1: upload/publish image to arweave:
-			let transaction1 = await this.arweave.createTransaction({ data: reader.result }, key);
+			let transaction1 = await this.arweave.createTransaction({ data: reader.result }, arKey);
 			transaction1.addTag('Content-Type', imageFile.type);
 
-			await this.arweave.transactions.sign(transaction1, key);
+			await this.arweave.transactions.sign(transaction1, arKey);
 
 			let arUploader = await this.arweave.transactions.getUploader(transaction1);
 
@@ -188,17 +189,27 @@ class Intake extends React.Component {
 
 			progress.log("image deployed: " + this.txToLink(transaction1.id));
 
+			const image_url = this.txToUrl(transaction1.id);
 			// Step 2: upload/publish JSON metadata (including URL from step 1)
-			let nftObj = formJSON;
-			delete formJSON.arkey;
-			nftObj.image = this.txToUrl(transaction1.id);
-			nftObj.visibility = nftObj.visibility || "safe";
-			delete nftObj.MAX_FILE_SIZE;
-			let transaction2 = await this.arweave.createTransaction({ data: JSON.stringify(nftObj) }, key);
+			let nftObj = {
+				vtype: formObj.vtype,
+				vsubtype: formObj.vsubtype,
+				name: formObj.name,
+				artist: formObj.artist,
+				description: formObj.description,
+				created: formObj.created,
+				image: image_url,
+				visibility: formObj.visibility || "safe"
+			}
+			console.log(nftObj);//DEBUG
+
+			//nftObj.image = this.txToUrl(transaction1.id);
+			//nftObj.visibility = nftObj.visibility || "safe";
+			let transaction2 = await this.arweave.createTransaction({ data: JSON.stringify(nftObj) }, arKey);
 
 			transaction2.addTag('Content-Type', 'application/json');
 
-			await this.arweave.transactions.sign(transaction2, key);
+			await this.arweave.transactions.sign(transaction2, arKey);
 			console.log("transaction 2:");
 			console.log(transaction2);
 
@@ -208,28 +219,25 @@ class Intake extends React.Component {
 				await arUploader.uploadChunk();
 				progress.log(`deploying metadata: ${arUploader.pctComplete}% complete, ${arUploader.uploadedChunks}/${arUploader.totalChunks}`);
 			}
-			const meta_url = this.txToLink(transaction2.id);
-			progress.log("metadata deployed: " + meta_url);
+
+			const meta_url = this.txToUrl(transaction2.id);
+			progress.log("metadata deployed: " + this.txToLink(transaction2.id));
 
 			// Step 3: Create seed record in Plantary contract, including URL from step 2
 			//
 			var seedid = await window.contract.create_seed({
-				vtype: nftObj.vtype,
-				vsubtype: nftObj.vsubtype,
+				vtype: parseInt(formObj.vtype),
+				vsubtype: parseInt(formObj.vsubtype),
 				meta_url: meta_url,
-				rarity: nftObj.rarity, 
-				// edition: nftObj.edition,
+				rarity: parseInt(formObj.rarity), 
+				// edition: parseInt(formObj.edition),
 				edition: 1,
 			});
 
-			progress.log("seed " + seedid + "planted");
-
-			progress.log("done!");
-			resetButton.show();
+			// ... redirects to the Near wallet.  
 
 		}.bind(this);
 
-		// maybe this buffer already exists in upload, but i can't find it ...
 		reader.readAsArrayBuffer(imageFile); // triggers reader.load ...
 	}
 
@@ -269,11 +277,11 @@ class Intake extends React.Component {
 										<label for="vtype" class="col-3 col-form-label">Plant or Harvest?</label> 
 										<div class="col-9">
 											<div class="custom-control custom-radio custom-control-inline">
-												<input type="radio" id="vtype-plant" name="vtype" class="custom-control-input" />
+												<input type="radio" id="vtype-plant" name="vtype" value="1" class="custom-control-input" />
 												<label class="custom-control-label" for="vtype-plant">Plant</label>
 											</div>
 											<div class="custom-control custom-radio custom-control-inline">
-												<input type="radio" id="vtype-harvest" name="vtype" class="custom-control-input" />
+												<input type="radio" id="vtype-harvest" name="vtype" value="2" class="custom-control-input" />
 												<label class="custom-control-label" for="vtype-harvest">Harvest</label>
 											</div>
 										</div>
@@ -281,7 +289,7 @@ class Intake extends React.Component {
 									<div class="form-group row">
 										<label for="vsubtype" class="col-3 col-form-label">Type</label> 
 										<div class="col-9">
-											<select class="form-control" id="type">
+											<select class="form-control" id="vsubtype" name="vsubtype">
 												<option>Choose ...</option>
 												<option value="1">Oracle</option>
 												<option value="2">Portrait</option>
@@ -298,7 +306,7 @@ class Intake extends React.Component {
 										<label for="rarity" class="col-3 col-form-label">Rarity</label> 
 										<label for="rarity" class="col-2">Omnipresent</label>
 										<div class="col-5 range">
-											<input type="range" class="form-range" min="1" max="10" step="0.5" id="rarity" />
+											<input type="range" class="form-range" min="1" max="10" step="0.5" name="rarity" id="rarity" />
 										</div>
 										<label for="rarity" class="col-2">Nonexistent</label>
 									</div>
