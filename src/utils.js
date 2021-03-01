@@ -8,13 +8,21 @@ export const vtypes = {
 	HARVEST: 2
 }
 
-export const ptypes = {
+export const ptypes = { // aka vsubtype
 	ORACLE: 1,
 	PORTRAIT: 2,
 	MONEY: 3,
 	COMPLIMENT: 4,
 	INSULT: 5,
 	SEED: 6
+}
+
+export const vnames = {
+	"en": [
+		'',
+		'Plant',
+		'Harvest'
+	]
 }
 
 export const pnames = {

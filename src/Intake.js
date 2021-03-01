@@ -2,7 +2,7 @@ import 'regenerator-runtime/runtime'
 import React from 'react'
 import ReactDOM from 'react-dom'
 import { connect, Contract, keyStores, WalletConnection } from 'near-api-js'
-import { login, logout, ptypes, initContract } from './utils'
+import { login, logout, vtypes, vnames, ptypes, pnames, initContract } from './utils'
 import { AccountOrWallet, WalletLink } from './walletComponents'
 import getConfig from './config'
 
@@ -93,6 +93,81 @@ class ResetButton extends React.Component {
 		)
 	}
 }
+
+
+class SeedTable extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+			//seeds: []
+			// test:
+			seeds : [ {
+				sid: 666,
+				name: 'arty',
+				vtype: 1,
+				vsubtype: 2,
+				artist: 'painter of light'
+			}]
+		};
+
+		// needed?
+		//this.getSeeds = this.getSeeds.bind(this);
+	}
+
+	componentDidMount() {
+    this.getSeeds();
+  }
+
+
+	getSeeds() {
+		let account = window.walletConnection.account();
+    if (window.walletConnection.isSignedIn()) {
+			window.contract.get_seeds_page( {page_size:0, page: 0} )
+      .then(seeds => {
+        this.setState({seeds: seeds});
+      })
+    }
+      // TODO: handle err
+	}
+
+	render() {
+		var rows = [];
+		this.state.seeds.forEach(function(s,i) {
+			rows.push(
+				<tr>
+					<th scope="row">{s.sid}</th>
+					<td>{s.name}</td>
+					<td>{vnames.en[s.vtype] }</td>
+					<td>{pnames.en[s.vsubtype ]}</td>
+					<td>{s.artist}</td>
+					<td>{s.rarity}</td>
+					<td><a href={s.meta_url}>{s.meta_url}</a></td>
+				</tr>
+			)
+		});
+		
+		return (
+			<table class="table">
+				<thead>
+					<tr>
+						<th scope="col">sid</th>
+						<th scope="col">name</th>
+						<th scope="col">type</th>
+						<th scope="col">subtype</th>
+						<th scope="col">artist</th>
+						<th scope="col">rarity</th>
+						<th scope="col">meta_url</th>
+					</tr>
+				</thead>
+				<tbody>
+					{ rows }
+				</tbody>
+			</table>
+		)
+	}
+
+}
+
 
 // Main page component
 class Intake extends React.Component {
@@ -424,8 +499,11 @@ class Intake extends React.Component {
 									</div>
 	</form>
 									<ProgressBlock />
-								  <ResetButton />
+									<ResetButton />
 							</div>
+						</section>
+						<section class="page-section seedtable" id="seedtable">
+									<SeedTable />
 						</section>
 					
 
@@ -442,7 +520,7 @@ class Intake extends React.Component {
 }
 
 window.nearInitPromise = initContract()
-  .then(() => {
+	.then(() => {
 		$( document ).ready(() => {
 			ReactDOM.render(
 				<Intake />,
