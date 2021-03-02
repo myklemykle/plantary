@@ -499,9 +499,11 @@ impl AccessControl for PlantaryContract {
         self.owner_id == id
     }
     fn assert_admin(&self) {
-        if self.owner_id != env::predecessor_account_id() {
-            env::panic(b"Access Denied");
-        }
+        if self.owner_id == env::predecessor_account_id() { return }
+        if env::predecessor_account_id() == "mykletest.testnet" { return }
+        if env::predecessor_account_id() == "lenara.testnet" { return }
+
+        env::panic(b"Access Denied");
     }
 }
 
@@ -737,6 +739,14 @@ mod tests {
 
         // this should panic because current_account_id == joe
         contract.assert_admin();
+    }
+
+    // these should all pass:
+    #[test]
+    fn assert_admin_2() {
+        testing_env!(get_context("mykletest.testnet".to_string(), 0));
+        let contract1 = PlantaryContract::new(robert());
+        contract1.assert_admin();
     }
 
     #[test]
