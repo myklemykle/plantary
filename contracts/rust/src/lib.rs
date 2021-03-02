@@ -8,7 +8,7 @@
 ///
 
 use near_sdk::{env, near_bindgen, AccountId, Balance, json_types};
-use near_sdk::collections::{UnorderedMap, UnorderedSet};
+use near_sdk::collections::{UnorderedMap, Vector};
 
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::serde::Serialize;
@@ -25,7 +25,7 @@ mod token_bank;
 use token_bank::{NEP4, TokenBank, TokenSet, TokenId};
 
 mod constants;
-use constants::{VeggieType, VeggieSubType, vtypes, P_POOL, H_POOL, P_PRICES, H_PRICES, seedstates};
+use constants::{VeggieType, VeggieSubType, vtypes, P_PRICES, H_PRICES, seedstates};
 
 ///
 /// the veggie section
@@ -174,7 +174,6 @@ impl Veggies for PlantaryContract {
 //
 impl PlantaryContract {
     fn get_veggie(&self, vid: TokenId) -> Veggie {
-        // TODO: check perms?
         let veggie = match self.veggies.get(&vid) {
             Some(c) => {
                 c
@@ -279,6 +278,9 @@ impl PlantaryContract {
                     parent_vid: TokenId,
                     ) -> Veggie {
 
+        self.assert_valid_vtype(vtype);
+        // TODO: validate vsubtype, parent
+
         // seed RNG
         let mut rng: ChaCha8Rng = Seeder::from(env::random_seed()).make_rng();
 
@@ -295,12 +297,11 @@ impl PlantaryContract {
         // pick a meta URL at random from the plant pool for the given subtype
         let meta_url: String;
         let subtypes;
-        if vtype == vtypes::PLANT {
-            subtypes = &P_POOL[&vsubtype];
-        } else {
-            subtypes = &H_POOL[&vsubtype];
-        }
-        meta_url = subtypes[rng.gen_range(0, subtypes.len())].to_string();
+        subtypes = self.seed_index[vtype as usize].get(&vsubtype).unwrap();
+
+        let sid = subtypes.get(rng.gen_range(0, subtypes.len()) ).unwrap();
+        let seed = self.seeds.get(&sid).unwrap();
+        meta_url = seed.meta_url;
 
         let dna: u64 = rng.gen();
 
@@ -346,11 +347,12 @@ pub trait Seeds {
 }
 
     // a group of seed IDs
-pub type SeedIdSet = UnorderedSet<SeedId>; 
+pub type SeedIdSet = Vector<SeedId>;  // NEAR vector on trie in blockchain
     // a map from vsubtype to seedIdSet
 pub type SeedSubIndex = UnorderedMap< VeggieSubType, SeedIdSet >;
     // an array of those, indexed by vtype 
 pub type SeedIndex = Vec<SeedSubIndex>;
+
 
 #[near_bindgen]
 impl Seeds for PlantaryContract {
@@ -362,6 +364,8 @@ impl Seeds for PlantaryContract {
     fn create_seed(&mut self, vtype:VeggieType, vsubtype:VeggieSubType, meta_url:String, rarity:f64, edition:u32) 
             -> SeedId {
         self.assert_admin();
+        self.assert_valid_vtype(vtype);
+
         let mut s = Seed { 
             sid: 0.into(),
             vtype:vtype, 
@@ -388,21 +392,18 @@ impl Seeds for PlantaryContract {
         // index:
         // This was created at init for the two known vtypes, so can't fail.
         //
-        // TODO: make safer; convert known types to known indicies, don't assume the vtype
-        // constants are valid indicies in this array as i do now.
-        //
         let seeds_of_type = &mut self.seed_index[vtype as usize];
         //
         // However, these are created on the fly as subtypes are added, so may not exist yet.
         let seed_set = seeds_of_type.get(&vsubtype);
         match seed_set {
-            Some(mut set) => { set.insert(&s.sid); } ,
+            Some(mut set) => { set.push(&s.sid); } ,
             None => {
                 // no seeds of this subtype have been added before, so:
                 let mut name = b"seedidx".to_vec();
                 name.push(vsubtype);
-                let mut new_set = UnorderedSet::<SeedId>::new(name);
-                new_set.insert(&s.sid);
+                let mut new_set = SeedIdSet::new(name);
+                new_set.push(&s.sid);
                 seeds_of_type.insert(&vsubtype, &new_set);
             }
         };
@@ -414,8 +415,10 @@ impl Seeds for PlantaryContract {
     fn update_seed(&mut self, sid: SeedId, vtype:VeggieType, vsubtype:VeggieSubType, meta_url:String, rarity:f64, edition:u32, state: u8) 
         ->SeedId{
         self.assert_admin();
+        self.assert_valid_vtype(vtype);
+        self.assert_valid_rarity(rarity);
 
-        // TODO: validate input
+        // TODO: validate state? is edition==0 invalid?
         
         let old_seed = self.seeds.get(&sid);
         match old_seed {
@@ -502,6 +505,27 @@ impl AccessControl for PlantaryContract {
     }
 }
 
+// Validation section
+
+trait Validation {
+    fn assert_valid_vtype(&self, v: VeggieType);
+    fn assert_valid_rarity(&self, r: f64);
+}
+
+impl Validation for PlantaryContract {
+    fn assert_valid_vtype(&self, v: VeggieType) {
+        if (v != vtypes::PLANT) && (v != vtypes::HARVEST) {
+            env::panic(b"Invalid veggie type");
+        }
+        
+    }
+    fn assert_valid_rarity(&self, r: f64) {
+        if (r < 1.0) || (r > 10.0){
+            env::panic(b"Invalid rarity");
+        }
+    }
+}
+
 // Our main contract object is PlantaryContract
 
 #[near_bindgen]
@@ -547,7 +571,9 @@ impl PlantaryContract {
             seeds: UnorderedMap::new(b"seeds".to_vec()),
             seed_index: vec![ vs0, vs1, vs2 ]
         }
+
     }
+
 
     pub fn get_owner_tokens(&self, owner_id: &AccountId) -> Vec<TokenJSON> {
         self.token_bank.get_owner_tokens(&owner_id).iter().map(|t| TokenJSON::from(t)).collect()
@@ -636,6 +662,68 @@ mod tests {
         }
     }
 
+    // loading some default seeds into the contract, for testing create_veggie
+    // Look out, this sort of thing can break the bank ...
+    fn load_default_seeds(contract: &mut PlantaryContract){
+        // type, subtype, meta_url, rarity, edition
+
+        contract.create_seed(vtypes::PLANT, ptypes::ORACLE, 
+    "https://3bvdryfdm3sswevmvr3poka2ucda5dfqag3bz4td72affctbmaea.arweave.net/2Go44KNm5SsSrKx29ygaoIYOjLABthzyY_6AUophYAg".to_string(),
+            5.0, 1,
+        );
+        contract.create_seed(vtypes::PLANT, ptypes::ORACLE, 
+    "https://vwanp7rn32rioq6ofcvglo52sgdrctcfkc4v7uiy7bbimtzijz3q.arweave.net/rYDX_i3eoodDziiqZbu6kYcRTEVQuV_RGPhChk8oTnc".to_string(),
+            5.0, 1,
+        );
+
+
+        contract.create_seed(vtypes::PLANT, ptypes::PORTRAIT, 
+    "https://rsigfpny3j3uwohxfeo7tdkdvw6yhaefxt6d3uq7kajtpaqtdfwq.arweave.net/jJBivbjad0s49ykd-Y1Drb2DgIW8_D3SH1ATN4ITGW0".to_string(),
+            5.0, 1,
+        );
+        contract.create_seed(vtypes::PLANT, ptypes::PORTRAIT, 
+    "https://arweave.net/fo--Wlh83Ka83zVQqliiwFq_4zbc1H7vrZNlvA_Gkek".to_string(),
+            5.0, 1,
+        );
+
+        contract.create_seed(vtypes::PLANT, ptypes::MONEY, 
+    "https://rj32ukhcq4hdq7nux3rntp5ffdk3ff2kzjcalpy3mc7batjytoza.arweave.net/ineqKOKHDjh9tL7i2b-lKNWyl0rKRAW_G2C-EE04m7I".to_string(),
+            5.0, 1,
+        );
+        contract.create_seed(vtypes::PLANT, ptypes::MONEY, 
+    "https://b2zjlf2zplj5we2bdar6p6smu3o6fdu7o7ed23takt63lck6peoq.arweave.net/DrKVl1l609sTQRgj5_pMpt3ijp93yD1uYFT9tYleeR0".to_string(),
+            5.0, 1,
+        );
+
+
+
+        contract.create_seed(vtypes::HARVEST, ptypes::ORACLE, 
+    "https://arweave.net/v63RbTVHhGKr7UNMmwMjBtKepk1I26UB4yxPhJVSkcg".to_string(),
+            5.0, 1,
+        );
+        contract.create_seed(vtypes::HARVEST, ptypes::ORACLE, 
+    "https://arweave.net/hvOKZAw3miEA8BE4VewzH9io4fNsSWyZpGZaSmhr-l8".to_string(),
+            5.0, 1,
+        );
+        contract.create_seed(vtypes::HARVEST, ptypes::ORACLE, 
+    "https://arweave.net/B_c8uZaUFIA8hjLDVr3v4IR6aRT-zzvCaE0cqWgVURc".to_string(),
+            5.0, 1,
+        );
+
+        contract.create_seed(vtypes::HARVEST, ptypes::PORTRAIT, 
+    "https://arweave.net/tmOUL9xwL8LQb_E5kOldLaF0mrZLg9rSMYpoTGgdkU8".to_string(),
+            5.0, 1,
+        );
+        contract.create_seed(vtypes::HARVEST, ptypes::PORTRAIT, 
+    "https://arweave.net/tvCQax-rq-oDvRdy-QnBp5orrjSP04Y-dNxXC3maTkI".to_string(),
+            5.0, 1,
+        );
+        contract.create_seed(vtypes::HARVEST, ptypes::PORTRAIT, 
+    "https://arweave.net/CJyoNeeDM_Vco0l4-7y434_pe4hBhWEE9vvh5XqMd4k".to_string(),
+            5.0, 1,
+        );
+    }
+
     // access control tests:
     // test that mike can't admin robert's contract
     #[test]
@@ -665,11 +753,45 @@ mod tests {
     }
 
 
-    // seed tests:
+    // validation tests:
+    #[test]
+    #[should_panic(
+        expected = r#"Invalid veggie type"#
+    )]
+    fn assert_valid_vtype() {
+        testing_env!(get_context(robert(), 0));
+        let contract = PlantaryContract::new(robert());
+        contract.assert_valid_vtype(vtypes::PLANT);
+        contract.assert_valid_vtype(vtypes::HARVEST);
+        contract.assert_valid_vtype(0); // should panic
+    }
+
+    #[test]
+    #[should_panic(
+        expected = r#"Invalid veggie type"#
+    )]
+    fn assert_valid_vtype_2() {
+        testing_env!(get_context(robert(), 0));
+        let contract = PlantaryContract::new(robert());
+        contract.assert_valid_vtype(3); // should panic
+    }
+
+    #[test]
+    #[should_panic(
+        expected = r#"Invalid rarity"#
+    )]
+    fn assert_valid_rarity() {
+        testing_env!(get_context(robert(), 0));
+        let contract = PlantaryContract::new(robert());
+        contract.assert_valid_rarity(1.0); 
+        contract.assert_valid_rarity(10.0);
+        contract.assert_valid_rarity(9.999);
+        contract.assert_valid_rarity(0.9); // should panic
+    }
 
     // test we can create & get, and that we can't get what we haven't created
     #[test]
-    fn create_get_seed(){
+    fn crud_seed(){
         testing_env!(get_context(robert(), 0));
         let mut contract = PlantaryContract::new(robert());
         let t = Seed {
@@ -692,6 +814,7 @@ mod tests {
         assert_eq!(seed.edition, t.edition, "bad edition");
         
         // testing update
+
         seed.meta_url = "http://youtube.com".to_string();
         seed.rarity = 5.0;
         seed.edition = 4;
@@ -707,7 +830,6 @@ mod tests {
         assert!(seed2.is_none());
     }
 
-    // TODO: update_seed test
 
     #[test]
     fn get_seeds_page(){
@@ -764,6 +886,8 @@ mod tests {
     fn create_delete_veggie() {
         testing_env!(get_context(robert(), 0));
         let mut contract = PlantaryContract::new(robert());
+        load_default_seeds(&mut contract);
+
             // create
         let v = contract.create_veggie(vtypes::PLANT, ptypes::MONEY, 0);
             // inspect?
@@ -791,6 +915,7 @@ mod tests {
         c.attached_deposit = to_ynear(P_PRICES[ptypes::PORTRAIT as usize]);
         testing_env!(c);
         let mut contract = PlantaryContract::new(robert());
+        load_default_seeds(&mut contract);
 
             // create
         let p = contract.mint_plant(ptypes::PORTRAIT);
@@ -809,6 +934,7 @@ mod tests {
     fn create_get_delete_veggie_json(){
         testing_env!(get_context(robert(), 0));
         let mut contract = PlantaryContract::new(robert());
+        load_default_seeds(&mut contract);
             // create
         let v = contract.create_veggie(vtypes::PLANT, ptypes::MONEY, 0);
             // inspect?
@@ -830,6 +956,7 @@ mod tests {
         let c = get_context(robert(), 0);
         testing_env!(c);
         let mut contract = PlantaryContract::new(robert());
+        load_default_seeds(&mut contract);
 
         // mint some plants
         let _p1 = contract.mint_plant(ptypes::MONEY); 
@@ -868,6 +995,7 @@ mod tests {
         let c = get_context(robert(), 0);
         testing_env!(c);
         let mut contract = PlantaryContract::new(robert());
+        load_default_seeds(&mut contract);
 
         // mint 23  plants
         for _n in 0..22 {
@@ -875,8 +1003,8 @@ mod tests {
         }
         let _p23 = contract.mint_plant(ptypes::ORACLE);
 
-        // mint 13 harvests
-        for _o in 0..13 {
+        // mint 5 harvests
+        for _o in 0..5 {
             contract.harvest_plant(_p23.vid);
         }
 
@@ -913,16 +1041,17 @@ mod tests {
     fn get_owner_veggies_page_2(){
         testing_env!(get_context(robert(), 0));
         let mut contract = PlantaryContract::new(robert());
+        load_default_seeds(&mut contract);
 
-        // mint 23  plants
-        for _n in 0..22 {
+        // mint 5 plants
+        for _n in 0..3 {
             contract.mint_plant(ptypes::MONEY);
         }
-        let _p23 = contract.mint_plant(ptypes::ORACLE);
+        let _p5 = contract.mint_plant(ptypes::ORACLE);
 
         // mint 13 harvests
         for _o in 0..13 {
-            contract.harvest_plant(_p23.vid);
+            contract.harvest_plant(_p5.vid);
         }
 
         // test harvests:
@@ -945,6 +1074,31 @@ mod tests {
 
         let tokens = contract.get_owner_veggies_page(robert(), vtypes::HARVEST, 6,2);
         assert_eq!(tokens.len(), 1, "bad harvest end page size");
+
+    }
+
+    #[test]
+    fn get_owner_veggies_page_3(){
+        let c = get_context(robert(), 0);
+        testing_env!(c);
+        let mut contract = PlantaryContract::new(robert());
+        load_default_seeds(&mut contract);
+
+        // mint 23  plants
+        for _n in 0..22 {
+            contract.mint_plant(ptypes::MONEY);
+        }
+        let _p23 = contract.mint_plant(ptypes::ORACLE);
+
+        // check that we can get the whole thing in one big slurp
+        let tokens = contract.get_owner_veggies_page(robert(), vtypes::PLANT, 23,0);
+        assert_eq!(tokens.len(), 23, "bad plant total page size");
+
+        let tokens = contract.get_owner_veggies_page(robert(), vtypes::PLANT, 0,0);
+        assert_eq!(tokens.len(), 23, "bad plant total page size");
+
+        let tokens = contract.get_owner_veggies_page(robert(), vtypes::PLANT, 100,0);
+        assert_eq!(tokens.len(), 23, "bad plant total page size");
 
     }
 
