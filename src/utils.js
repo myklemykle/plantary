@@ -1,4 +1,4 @@
-import { connect, Contract, keyStores, WalletConnection, utils, account } from 'near-api-js'
+import { connect, Contract, keyStores, WalletConnection, utils } from 'near-api-js'
 import getConfig from './config'
 
 const nearConfig = getConfig(process.env.NODE_ENV || 'development')
@@ -96,6 +96,7 @@ export async function initContract() {
 		],
   })
 
+	return window.contract;
 }
 
 export function logout() {
