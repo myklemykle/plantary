@@ -1,6 +1,8 @@
 import 'regenerator-runtime/runtime'
 import React from 'react'
 import ReactDOM from 'react-dom'
+import Modal from 'react-bootstrap/Modal'
+import Button from 'react-bootstrap/Button'
 //import { connect, Contract, keyStores, WalletConnection } from 'near-api-js'
 import { connect, Contract, keyStores } from 'near-api-js'
 import { login, logout, vtypes, vnames, ptypes, pnames, initContract } from './utils'
@@ -9,93 +11,6 @@ import getConfig from './config'
 
 const nearConfig = getConfig(process.env.NODE_ENV || 'development')
 const arweaveHost = 'testnet.arweave.net'; // testnet
-
-// Component: progress block
-class ProgressBlock extends React.Component {
-	constructor(props) {
-		super(props);
-		props = props || {};
-		this.state = { 
-			log: props.log || "" ,
-			display: props.display || "none"
-		};
-	}
-
-	log(s){
-		console.log(s);
-		this.setState({
-			//log: this.state.log + s +  "<br\>",
-			log: this.state.log + s + "\n",
-			display: "inline"
-		}); 
-		// maybe React doesn't render during event handlers?  which is the only place we use this?
-		// Anyway, forcing the issue:
-		this.forceUpdate();
-	}
-
-	clear(){
-		this.setState({
-			log: "",
-			display: "none"
-		})
-	}
-
-	render() { 
-		return (
-			<div id="progressblock" class="row" style={{display: this.state.display}}>
-				<div class="col-3 col-form-label">Deployment progress:</div>
-				<div id="progress" class="col-9">
-					{this.state.log}
-				</div>
-			</div>
-		)
-	}
-}
-
-const progress = new ProgressBlock();
-
-// reset entire form
-function resetForm(e){
-	e.preventDefault();
-	let theForm = $('#sow');
-	theForm.find('input,textarea:not([name="arkey"])').val('');
-	progress.clear();
-}
-
-// Component: reset button
-class ResetButton extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = {
-			display: "none"
-		};
-	}
-
-	resetClick() {
-		resetForm();
-		this.hide();
-	}
-
-	hide(){ 
-		this.setState({display: "none"});
-	}
-	show(){ 
-		this.setState({display: "inline"});
-	}
-
-		// utility: clear the whole form except the key
-
-	render() { 
-		return (
-			<div id="formResetButton" class="form-group row" style={{display: this.state.display}}>
-				<div class="offset-3 col-9">
-					<button name="reset" type="button" onClick={resetForm} class="btn btn-primary">Next!</button>
-				</div>
-			</div>
-		)
-	}
-}
-
 
 class SeedTable extends React.Component {
   constructor(props) {
@@ -196,9 +111,24 @@ class Intake extends React.Component {
 	constructor(props){
 		super(props);
 		this.state = {
+			showModal: false,
+			log: ""
 		};
 		this.handleSubmit = this.handleSubmit.bind(this);
+		this.closeModal = this.closeModal.bind(this);
 	}
+
+	closeModal() {
+		this.setState({showModal: false});
+	}
+
+	log(s){
+    console.log(s);
+    this.setState({
+      log: this.state.log + s + "\n",
+      showModal: true
+    });
+  }
 
 	// attach libraries to DOM after render
 	componentDidMount() {
@@ -269,7 +199,7 @@ class Intake extends React.Component {
 
 		// TODO: a simple exception handler around all this, just to display exceptions to screen
 		reader.onload = async function() {
-			progress.log('starting upload ...');
+			this.log('starting upload ...');
 
 			// Three step process.
 			//
@@ -283,25 +213,13 @@ class Intake extends React.Component {
 
 			while (!arUploader.isComplete) {
 				await arUploader.uploadChunk();
-				progress.log(`deploying image: ${arUploader.pctComplete}% complete, ${arUploader.uploadedChunks}/${arUploader.totalChunks}`);
+				this.log(`deploying image: ${arUploader.pctComplete}% complete, ${arUploader.uploadedChunks}/${arUploader.totalChunks}`);
 			}
 
-			progress.log("image deployed: " + this.txToLink(transaction1.id));
+			this.log("image deployed.");
 
 			const image_url = this.txToUrl(transaction1.id);
 			// Step 2: upload/publish JSON metadata (including URL from step 1)
-			/*
-			let nftObj = {
-				vtype: formObj.vtype,
-				vsubtype: formObj.vsubtype,
-				name: formObj.name,
-				artist: formObj.artist,
-				description: formObj.description,
-				created: formObj.created,
-				image: image_url,
-				visibility: formObj.visibility || "safe"
-			}
-			*/
 
 			// this is our own custom format, somewhat compatible with the mintbase NFT format, 
 			// but still different, because this will the metadata for multiple NFTs.
@@ -350,11 +268,11 @@ class Intake extends React.Component {
 
 			while (!arUploader.isComplete) {
 				await arUploader.uploadChunk();
-				progress.log(`deploying metadata: ${arUploader.pctComplete}% complete, ${arUploader.uploadedChunks}/${arUploader.totalChunks}`);
+				this.log(`deploying metadata: ${arUploader.pctComplete}% complete, ${arUploader.uploadedChunks}/${arUploader.totalChunks}`);
 			}
 
 			const meta_url = this.txToUrl(transaction2.id);
-			progress.log("metadata deployed: " + this.txToLink(transaction2.id));
+			this.log("metadata deployed, seeding contract ...");
 
 			// Step 3: Create seed record in Plantary contract, including URL from step 2
 			//
@@ -363,7 +281,7 @@ class Intake extends React.Component {
 				vsubtype: parseInt(formObj.vsubtype),
 				meta_url: meta_url,
 				rarity: parseInt(formObj.rarity), 
-				// edition: parseInt(formObj.edition),
+				// edition: parseInt(formObj.edition), // not in form yet
 				edition: 1,
 			});
 
@@ -371,8 +289,7 @@ class Intake extends React.Component {
 
 		}.bind(this);
 
-		setTimeout(reader.readAsArrayBuffer(imageFile)); // triggers reader.load ...
-		//reader.readAsArrayBuffer(imageFile); // triggers reader.load ...
+		reader.readAsArrayBuffer(imageFile); // triggers reader.load ...
 	}
 
 
@@ -557,13 +474,23 @@ class Intake extends React.Component {
 										</div>
 									</div>
 	</form>
-									<ProgressBlock />
-									<ResetButton />
 							</div>
 						</section>
 						<section class="page-section seedtable" id="seedtable">
 									<SeedTable />
 						</section>
+			
+			<Modal show={this.state.showModal} onHide={this.closeModal}>
+        <Modal.Header closeButton>
+          <Modal.Title>Planting ...</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>{this.state.log}</Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={this.closeModal}>
+            Close
+          </Button>
+        </Modal.Footer>
+      </Modal>
 					
 
 						{/* Copyright Section */}
