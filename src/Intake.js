@@ -1,7 +1,8 @@
 import 'regenerator-runtime/runtime'
 import React from 'react'
 import ReactDOM from 'react-dom'
-import { connect, Contract, keyStores, WalletConnection } from 'near-api-js'
+//import { connect, Contract, keyStores, WalletConnection } from 'near-api-js'
+import { connect, Contract, keyStores } from 'near-api-js'
 import { login, logout, vtypes, vnames, ptypes, pnames, initContract } from './utils'
 import { AccountOrWallet, WalletLink } from './walletComponents'
 import getConfig from './config'
@@ -23,7 +24,8 @@ class ProgressBlock extends React.Component {
 	log(s){
 		console.log(s);
 		this.setState({
-			log: this.state.log + s +  "<br\>",
+			//log: this.state.log + s +  "<br\>",
+			log: this.state.log + s + "\n",
 			display: "inline"
 		}); 
 		// maybe React doesn't render during event handlers?  which is the only place we use this?
@@ -118,6 +120,23 @@ class SeedTable extends React.Component {
     this.getSeeds();
   }
 
+	getSeedMeta(seed) {
+		var sidx = this.state.seeds.findIndex(s => {return s.sid === seed.sid});
+		// TODO throw exception if no index.
+		var seedMeta = $.getJSON(seed.meta_url)
+			.then(s => {
+				// munge ...
+				Object.assign(this.state.seeds[sidx], s);
+				var attrs = {};
+				s.attributes.forEach((v,i) => {
+					if (v.trait_type === "rarity") return; // don't do this one.
+					attrs[v.trait_type] = v.value;
+				});
+				Object.assign(this.state.seeds[sidx], attrs);
+				this.setState({seeds: this.state.seeds});
+			})
+			// TODO: handle err
+	}
 
 	getSeeds() {
 		let account = window.walletConnection.account();
@@ -125,6 +144,7 @@ class SeedTable extends React.Component {
 			window.contract.get_seeds_page( {page_size:0, page: 0} )
       .then(seeds => {
         this.setState({seeds: seeds});
+				seeds.forEach(s => this.getSeedMeta(s) )
       })
     }
       // TODO: handle err
@@ -136,6 +156,7 @@ class SeedTable extends React.Component {
 			rows.push(
 				<tr>
 					<th scope="row">{s.sid}</th>
+					<td><img src={s.image} style={{height: "50px"}} class="seed-image" /></td>
 					<td>{s.name}</td>
 					<td>{vnames.en[s.vtype] }</td>
 					<td>{pnames.en[s.vsubtype ]}</td>
@@ -151,6 +172,7 @@ class SeedTable extends React.Component {
 				<thead>
 					<tr>
 						<th scope="col">sid</th>
+						<th scope="col">image</th>
 						<th scope="col">name</th>
 						<th scope="col">type</th>
 						<th scope="col">subtype</th>
@@ -241,11 +263,13 @@ class Intake extends React.Component {
 		var reader = new FileReader();
 		var arKey = JSON.parse($('#arkey').val()); 
 		var formObj = this.objectifyForm( $(e.target.form).serializeArray() );
+		var account = window.walletConnection.account();
 
 		console.log(formObj);//DEBUG
 
 		// TODO: a simple exception handler around all this, just to display exceptions to screen
 		reader.onload = async function() {
+			progress.log('starting upload ...');
 
 			// Three step process.
 			//
@@ -266,6 +290,7 @@ class Intake extends React.Component {
 
 			const image_url = this.txToUrl(transaction1.id);
 			// Step 2: upload/publish JSON metadata (including URL from step 1)
+			/*
 			let nftObj = {
 				vtype: formObj.vtype,
 				vsubtype: formObj.vsubtype,
@@ -276,10 +301,43 @@ class Intake extends React.Component {
 				image: image_url,
 				visibility: formObj.visibility || "safe"
 			}
+			*/
+
+			// this is our own custom format, somewhat compatible with the mintbase NFT format, 
+			// but still different, because this will the metadata for multiple NFTs.
+			// So it's not got a 'minter' or 'minted' or 'mintedOn', and also
+			// price info & rarity info aren't encoded here.  I hope that someday
+			// we'll be able to figure out how to make this easy for marketplaces to use,
+			// but the standards simply aren't there today.  For now, this will let us
+			// use one decoder for both our new seeds and the existing beta-set of seeds.
+
+			let nftObj = {
+				type: "NEP4",
+				contractAddress: window.contract.contractId,
+				blockchain: "NEAR",
+				seeder: account.accountId,
+				seeded: "seeded on Plantary",
+				seededOn: formObj.created, // check format
+				name: formObj.name,
+				description: formObj.description,
+				image: image_url,
+				visibility: formObj.visibility || "safe",
+				attributes: [
+					{
+						trait_type: "vtype",
+						value: formObj.vtype
+					}, {
+						trait_type: "vsubtype",
+						value: formObj.vsubtype
+					}, {
+						trait_type: "artist",
+						value: formObj.artist
+					} 
+				] 
+			};
+
 			console.log(nftObj);//DEBUG
 
-			//nftObj.image = this.txToUrl(transaction1.id);
-			//nftObj.visibility = nftObj.visibility || "safe";
 			let transaction2 = await this.arweave.createTransaction({ data: JSON.stringify(nftObj) }, arKey);
 
 			transaction2.addTag('Content-Type', 'application/json');
@@ -313,7 +371,8 @@ class Intake extends React.Component {
 
 		}.bind(this);
 
-		reader.readAsArrayBuffer(imageFile); // triggers reader.load ...
+		setTimeout(reader.readAsArrayBuffer(imageFile)); // triggers reader.load ...
+		//reader.readAsArrayBuffer(imageFile); // triggers reader.load ...
 	}
 
 
