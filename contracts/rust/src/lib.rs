@@ -296,10 +296,9 @@ impl PlantaryContract {
 
         // pick a meta URL at random from the plant pool for the given subtype
         let meta_url: String;
-        let subtypes;
-        subtypes = self.seed_index[vtype as usize].get(&vsubtype).unwrap();
+        let sids = self.get_sids_of_type(vtype, vsubtype).unwrap();
 
-        let sid = subtypes.get(rng.gen_range(0, subtypes.len()) ).unwrap();
+        let sid = sids.get(rng.gen_range(0, sids.len()) ).unwrap();
         let seed = self.seeds.get(&sid).unwrap();
         meta_url = seed.meta_url;
 
@@ -342,6 +341,8 @@ pub trait Seeds {
     fn get_seed(&self, sid: SeedId) 
         -> Option<Seed>;
     fn get_seeds_page(&self, page_size: u16, page: u16)
+        -> Vec<Seed>;
+    fn get_seeds_of_type_page(&self, vtype: VeggieType, vsubtype: VeggieSubType, page_size: u16, page: u16) 
         -> Vec<Seed>;
     fn delete_seed(&mut self, sid: SeedId);
 }
@@ -392,19 +393,24 @@ impl Seeds for PlantaryContract {
         // index:
         // This was created at init for the two known vtypes, so can't fail.
         //
-        let seeds_of_type = &mut self.seed_index[vtype as usize];
+        //let seeds_of_type = &mut self.seed_index[vtype as usize];
         //
         // However, these are created on the fly as subtypes are added, so may not exist yet.
-        let seed_set = seeds_of_type.get(&vsubtype);
+        //let seed_set = seeds_of_type.get(&vsubtype);
+        
+        let seed_set = self.get_sids_of_type(vtype, vsubtype);
+        
         match seed_set {
             Some(mut set) => { set.push(&s.sid); } ,
             None => {
                 // no seeds of this subtype have been added before, so:
                 let mut name = b"seedidx".to_vec();
+                name.push(vtype);
+                name.push(58); // ascii ':'
                 name.push(vsubtype);
                 let mut new_set = SeedIdSet::new(name);
                 new_set.push(&s.sid);
-                seeds_of_type.insert(&vsubtype, &new_set);
+                self.seed_index[vtype as usize].insert(&vsubtype, &new_set);
             }
         };
 
@@ -482,6 +488,64 @@ impl Seeds for PlantaryContract {
         if endpoint > count { endpoint = count; }
 
         seeds_vec[startpoint .. endpoint].to_vec()
+    }
+
+    // TODO: refactor this together with the prev, once it's working ... we need only one seed getter.
+    fn get_seeds_of_type_page(&self, vtype: VeggieType, vsubtype: VeggieSubType, page_size: u16, page: u16) -> Vec<Seed>{
+        if vtype==0 && vsubtype==0 {
+            return self.get_seeds_page(page_size, page);
+        }
+
+        self.assert_valid_vtype(vtype);
+
+        //let subtype_sids = self.seed_index[vtype as usize].get(&vsubtype).unwrap();
+        //let sid_iter = subtype_sids.iter();
+        //let seed_iter = sid_iter.map(|sid| self.seeds.get(&sid).unwrap());
+        //let count = subtype_sids.len() as usize;
+        //let seeds_vec: Vec<Seed> = seed_iter.collect();
+        
+        let seeds_vec = match self.get_seeds_of_type(vtype, vsubtype) {
+            Some(v) => v,
+            None => Vec::new()
+        };
+
+        let count = seeds_vec.len();
+
+        if page_size == 0 {
+            // try to return all results
+            return seeds_vec;
+        }
+
+        let startpoint: usize = page_size as usize * page as usize;
+        if startpoint > count { 
+            return Vec::new() ;
+        }
+
+        let mut endpoint: usize  =  startpoint + page_size as usize ;
+        if endpoint > count { endpoint = count; }
+
+        seeds_vec[startpoint .. endpoint].to_vec()
+    }
+
+}
+
+/////////////////////////
+// private seed methods:
+impl PlantaryContract { 
+
+    fn get_sids_of_type(&self, vtype: VeggieType, vsubtype: VeggieSubType) -> Option<Vector<SeedId>>{
+        self.seed_index[vtype as usize].get(&vsubtype)
+    }
+
+    fn get_seeds_of_type(&self, vtype: VeggieType, vsubtype: VeggieSubType) -> Option<Vec<Seed>>{
+        match self.get_sids_of_type(vtype, vsubtype) {
+            Some(v) => {
+                return Some(v.iter().map(  |sid| self.seeds.get(&sid).unwrap()  ).collect());
+            },
+            None => {
+                return None;
+            }
+        };
     }
 
 }
@@ -915,9 +979,44 @@ mod tests {
     }
 
     // TODO: test we can't delete a veggie we don't own (unless we are contract owner)
-
-
     // TODO: Test that we are charged some NEAR tokens when we mint a plant
+
+    // Test for a certain bug with picking the wrong seeds ...
+    // was due to non-unique names when creating near Vectors, bleh.
+    #[test]
+    fn veggie_scramble() {
+        let c = get_context(robert(), 0);
+        testing_env!(c);
+        let mut contract = PlantaryContract::new(robert());
+
+        // exactly 1 plant seed & 1 harvest seed for 1 vsubtype
+        contract.create_seed(vtypes::PLANT, ptypes::ORACLE, 
+    "https://url.com/planturl".to_string(),
+            5.0, 1,
+        );
+
+        let mut plantseeds = contract.get_seeds_of_type_page(vtypes::PLANT, ptypes::ORACLE, 0,0);
+        assert_eq!(plantseeds.len(), 1, "wrong number of plant seeds");
+        let mut harvestseeds = contract.get_seeds_of_type_page(vtypes::HARVEST, ptypes::ORACLE, 0,0);
+        assert_eq!(harvestseeds.len(), 0, "wrong number of harvest seeds");
+
+
+        contract.create_seed(vtypes::HARVEST, ptypes::ORACLE, 
+    "https://url.com/harvesturl".to_string(),
+            5.0, 1,
+        );
+
+        plantseeds = contract.get_seeds_of_type_page(vtypes::PLANT, ptypes::ORACLE, 0,0);
+        assert_eq!(plantseeds.len(), 1, "wrong number of plant seeds");
+        harvestseeds = contract.get_seeds_of_type_page(vtypes::HARVEST, ptypes::ORACLE, 0,0);
+        assert_eq!(harvestseeds.len(), 1, "wrong number of harvest seeds");
+
+        let plant = contract.create_veggie(vtypes::PLANT, ptypes::ORACLE, 0);
+        assert_eq!(plant.meta_url, "https://url.com/planturl", "bad plant url");
+        let harvest = contract.create_veggie(vtypes::HARVEST, ptypes::ORACLE, 0);
+        assert_eq!(harvest.meta_url, "https://url.com/harvesturl", "bad harvest url");
+
+    }
 
     #[test]
     fn harvest_plant(){
