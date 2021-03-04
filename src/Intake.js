@@ -3,7 +3,6 @@ import React from 'react'
 import ReactDOM from 'react-dom'
 import Modal from 'react-bootstrap/Modal'
 import Button from 'react-bootstrap/Button'
-//import { connect, Contract, keyStores, WalletConnection } from 'near-api-js'
 import { connect, Contract, keyStores } from 'near-api-js'
 import { login, logout, vtypes, vnames, ptypes, pnames, initContract } from './utils'
 import { AccountOrWallet, WalletLink } from './walletComponents'
@@ -16,8 +15,9 @@ class SeedTable extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
-			//seeds: []
+			seeds: []
 			// test:
+			/*
 			seeds : [ {
 				sid: 666,
 				name: 'arty',
@@ -25,10 +25,8 @@ class SeedTable extends React.Component {
 				vsubtype: 2,
 				artist: 'painter of light'
 			}]
+			*/
 		};
-
-		// needed?
-		//this.getSeeds = this.getSeeds.bind(this);
 	}
 
 	componentDidMount() {
@@ -112,7 +110,8 @@ class Intake extends React.Component {
 		super(props);
 		this.state = {
 			showModal: false,
-			log: ""
+			//log: ""
+			log: [] // array of jsx elements
 		};
 		this.handleSubmit = this.handleSubmit.bind(this);
 		this.closeModal = this.closeModal.bind(this);
@@ -120,12 +119,15 @@ class Intake extends React.Component {
 
 	closeModal() {
 		this.setState({showModal: false});
+		location.reload();
 	}
 
 	log(s){
     console.log(s);
+		this.state.log.push( (<p>{s}</p>) );
     this.setState({
-      log: this.state.log + s + "\n",
+			//log: this.state.log + s + "\n",
+			log: this.state.log,
       showModal: true
     });
   }
@@ -285,7 +287,14 @@ class Intake extends React.Component {
 				edition: 1,
 			});
 
-			// ... redirects to the Near wallet.  
+			// ... this sometimes redirects to the Near wallet and sometimes not, depending on the cost of the data?
+			
+			this.log("Seed planted!");
+			// TODO: update seed list!
+			// tell seed list to update?
+			// tell this to re-render seed list?
+			// reload page?
+			// react ... you so weird
 
 		}.bind(this);
 
