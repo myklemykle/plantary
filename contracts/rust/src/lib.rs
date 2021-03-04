@@ -391,17 +391,22 @@ impl Seeds for PlantaryContract {
         self.seeds.insert(&s.sid, &s); 
 
         // index:
-        // This was created at init for the two known vtypes, so can't fail.
-        //
-        //let seeds_of_type = &mut self.seed_index[vtype as usize];
-        //
-        // However, these are created on the fly as subtypes are added, so may not exist yet.
-        //let seed_set = seeds_of_type.get(&vsubtype);
-        
         let seed_set = self.get_sids_of_type(vtype, vsubtype);
         
         match seed_set {
-            Some(mut set) => { set.push(&s.sid); } ,
+            Some(mut set) => { 
+                set.push(&s.sid); 
+                // OK ...
+                // I had to add this line to fix a certain bug. This Some branch was having no 
+                // effect on state.  Apparently 'set' at this point is a copy of the vector, not pointing
+                // into seed_index, and writing to it doesn't save anything.  
+                //
+                // I can solve that like so:
+                self.seed_index[vtype as usize].insert(&vsubtype, &set);
+                // ... which works because the old vector is replaced with the new one.
+                // But isn't that churning the storage layer?  Expensive in gas?  Maybe I'm doing this wrong?
+                // Revisit when I understand things better.  For now, tests pass.
+            } ,
             None => {
                 // no seeds of this subtype have been added before, so:
                 let mut name = b"seedidx".to_vec();
@@ -733,14 +738,19 @@ mod tests {
     fn load_default_seeds(contract: &mut PlantaryContract){
         // type, subtype, meta_url, rarity, edition
 
+        assert!(contract.get_sids_of_type(vtypes::PLANT, ptypes::ORACLE).is_none(), "seed index broken already");
+
         contract.create_seed(vtypes::PLANT, ptypes::ORACLE, 
     "https://3bvdryfdm3sswevmvr3poka2ucda5dfqag3bz4td72affctbmaea.arweave.net/2Go44KNm5SsSrKx29ygaoIYOjLABthzyY_6AUophYAg".to_string(),
             5.0, 1,
         );
+        assert_eq!(contract.get_sids_of_type(vtypes::PLANT, ptypes::ORACLE).unwrap().len(), 1, "seed index broken after 1");
+
         contract.create_seed(vtypes::PLANT, ptypes::ORACLE, 
     "https://vwanp7rn32rioq6ofcvglo52sgdrctcfkc4v7uiy7bbimtzijz3q.arweave.net/rYDX_i3eoodDziiqZbu6kYcRTEVQuV_RGPhChk8oTnc".to_string(),
             5.0, 1,
         );
+        assert_eq!(contract.get_sids_of_type(vtypes::PLANT, ptypes::ORACLE).unwrap().len(), 2, "seed index broken after 2");
 
 
         contract.create_seed(vtypes::PLANT, ptypes::PORTRAIT, 
@@ -904,6 +914,38 @@ mod tests {
         assert!(seed2.is_none());
     }
 
+
+    #[test]
+    fn get_sids_of_type(){
+        let c = get_context(robert(), 0);
+        testing_env!(c);
+        let mut contract = PlantaryContract::new(robert());
+        load_default_seeds(&mut contract); // 6 plants, 6 harvests
+
+        assert_eq!(contract.get_seeds_page(0,0).len(), 12, "bad seed count");
+        assert_eq!(contract.get_sids_of_type(vtypes::PLANT, ptypes::ORACLE).unwrap().len(), 2, "bad sid count");
+        assert_eq!(contract.get_sids_of_type(vtypes::PLANT, ptypes::PORTRAIT).unwrap().len(), 2, "bad sid count");
+        assert_eq!(contract.get_sids_of_type(vtypes::PLANT, ptypes::MONEY).unwrap().len(), 2, "bad sid count");
+        assert_eq!(contract.get_sids_of_type(vtypes::HARVEST, ptypes::ORACLE).unwrap().len(), 3, "bad sid count");
+        assert_eq!(contract.get_sids_of_type(vtypes::HARVEST, ptypes::PORTRAIT).unwrap().len(), 3, "bad sid count");
+        assert!(contract.get_sids_of_type(vtypes::HARVEST, ptypes::MONEY).is_none(), "bad sid count");
+    }
+
+    #[test]
+    fn get_seeds_of_type(){
+        let c = get_context(robert(), 0);
+        testing_env!(c);
+        let mut contract = PlantaryContract::new(robert());
+        load_default_seeds(&mut contract); // 6 plants, 6 harvests
+
+        assert_eq!(contract.get_seeds_page(0,0).len(), 12, "bad seed count");
+        assert_eq!(contract.get_seeds_of_type(vtypes::PLANT, ptypes::ORACLE).unwrap().len(), 2, "bad sid count");
+        assert_eq!(contract.get_seeds_of_type(vtypes::PLANT, ptypes::PORTRAIT).unwrap().len(), 2, "bad sid count");
+        assert_eq!(contract.get_seeds_of_type(vtypes::PLANT, ptypes::MONEY).unwrap().len(), 2, "bad sid count");
+        assert_eq!(contract.get_seeds_of_type(vtypes::HARVEST, ptypes::ORACLE).unwrap().len(), 3, "bad sid count");
+        assert_eq!(contract.get_seeds_of_type(vtypes::HARVEST, ptypes::PORTRAIT).unwrap().len(), 3, "bad sid count");
+        assert!(contract.get_seeds_of_type(vtypes::HARVEST, ptypes::MONEY).is_none(), "bad sid count");
+    }
 
     #[test]
     fn get_seeds_page(){
