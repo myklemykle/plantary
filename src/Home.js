@@ -1,6 +1,6 @@
 import React from 'react'
 //import { connect, Contract, keyStores, WalletConnection } from 'near-api-js'
-import { login, logout, mintPlant, vtypes, ptypes } from './utils'
+import { login, logout, mintPlant, vtypes, vcats } from './utils'
 import { Veggies } from './Veggies'
 import getConfig from './config'
 import { MineOrWallet, WalletLink, AccountOrWallet, MintPlantButton } from './walletComponents'
@@ -124,7 +124,7 @@ export function Home() {
                                     <p className="mb-5">The oracle plant is a mythical being with syncretic wisdom laying dormant in its fruit, waiting for questions to blossom in the seeker's mind.
 	                                    <br/> <br/><em>Minting fee: 10 Ⓝ</em>
                                     </p>
-																		<MintPlantButton pType={ptypes.ORACLE} price="10" />
+																		<MintPlantButton pType={vcats.ORACLE} price="10" />
                                 </div>
                             </div>
                         </div>
@@ -153,7 +153,7 @@ export function Home() {
                                     <p className="mb-5">You always wished for a money plant and here it is. The mere sight of its wealthy leaves will bring abundance to your life, even if they can't be used to buy groceries.
 	                                    <br/> <br/><em>Minting fee: 30 Ⓝ</em>
                                     </p>
-																		<MintPlantButton pType={ptypes.MONEY} price="30" />
+																		<MintPlantButton pType={vcats.MONEY} price="30" />
                                 </div>
                             </div>
                         </div>
@@ -182,7 +182,7 @@ export function Home() {
                                     <p className="mb-5">The portrait plant ripens a multitude of faces, each with unique features. You might see in their eyes a reflection of a familiar facet, or a glimpse from the unknown.
 	                                    <br/> <br/><em>Minting fee: 20 Ⓝ</em>
                                     </p>
-																		<MintPlantButton pType={ptypes.PORTRAIT} price="20" />
+																		<MintPlantButton pType={vcats.PORTRAIT} price="20" />
                                 </div>
                             </div>
                         </div>

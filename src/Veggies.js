@@ -1,6 +1,6 @@
 //import 'regenerator-runtime/runtime'
 import React from 'react'
-import { vtypes, ptypes, pnames, hprices, harvestPlant } from './utils'
+import { vtypes, vcats, pnames, hprices, harvestPlant } from './utils'
 //import { Home } from './Home'
 import getConfig from './config'
 
@@ -31,7 +31,7 @@ export class Veggie extends React.Component {
 			// these properties come from the server Veggie object:
 			//vid,
 			//vtype,
-			//vsubtype,
+			//vcat,
 			//parent_vid,
 			//dna,
 			//meta_url,
@@ -79,14 +79,14 @@ export class Veggie extends React.Component {
 
 	typeName(){
 		if (this.props.vtype == vtypes.PLANT) {
-			return pnames.en[this.props.vsubtype]; // TODO: i18n
+			return pnames.en[this.props.vcat]; // TODO: i18n
 		} else 
 			return ""; // nothing here for harvests
 	}
 
 	render(){
 		let modalId = "v-" + this.props.vid + "-Modal";
-		let harvestPrice = (this.props.vtype == vtypes.PLANT) ? hprices[this.props.vsubtype] : -1;
+		let harvestPrice = (this.props.vtype == vtypes.PLANT) ? hprices[this.props.vcat] : -1;
 		let harvestJsx, harvestButton;
 		if (harvestPrice >= 0) { 
 			harvestJsx = (
@@ -208,7 +208,7 @@ export class Veggies extends React.Component {
 							key={idx}
 							vid={value.vid}
 							vtype={value.vtype}
-							vsubtype={value.vsubtype}
+							vcat={value.vcat}
 							parent={value.parent_id}
 							dna={value.dna}
 							meta_url={value.meta_url}

@@ -8,7 +8,7 @@ export const vtypes = {
 	HARVEST: 2
 }
 
-export const ptypes = { // aka vsubtype
+export const vcats = { // aka vcat
 	ORACLE: 1,
 	PORTRAIT: 2,
 	MONEY: 3,
@@ -113,11 +113,11 @@ export function login() {
 	window.walletConnection.requestSignIn(nearConfig.contractName)
 }
 
-export function mintPlant(ptype, price) {
+export function mintPlant(vcat, price) {
 	let amount = utils.format.parseNearAmount(price.toString());
 	let account = window.walletConnection.account();
 	account.functionCall(nearConfig.contractName, 'mint_plant_json', {
-		vsubtype: ptype
+		vcat: vcat
 	}, 0, amount);
 }
 

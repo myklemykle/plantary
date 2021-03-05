@@ -3,9 +3,9 @@
 use near_sdk::{Balance};
 
 pub type VeggieType = u8;
-pub type VeggieSubType = u8;
-pub type PlantType = VeggieSubType;
-pub type HarvestType = VeggieSubType;
+pub type VeggieCategory = u8;
+pub type PlantType = VeggieCategory;
+pub type HarvestType = VeggieCategory;
 
 
 pub mod vtypes {
@@ -14,7 +14,7 @@ pub mod vtypes {
     pub const HARVEST: VeggieType = 2;
 }
 // Types of plant
-pub mod ptypes {
+pub mod vcats {
     use crate::constants::PlantType;
     //pub const GENERIC: PlantType = 0;
     pub const ORACLE: PlantType = 1;
@@ -71,19 +71,19 @@ lazy_static! {
     // pool of possible plants, sorted by plant type
     pub static ref P_POOL: HashMap<u8, Vec<&'static str>> = {
         let mut map = HashMap::new();
-        map.insert(ptypes::ORACLE, vec![
+        map.insert(vcats::ORACLE, vec![
     "https://3bvdryfdm3sswevmvr3poka2ucda5dfqag3bz4td72affctbmaea.arweave.net/2Go44KNm5SsSrKx29ygaoIYOjLABthzyY_6AUophYAg", 
     "https://vwanp7rn32rioq6ofcvglo52sgdrctcfkc4v7uiy7bbimtzijz3q.arweave.net/rYDX_i3eoodDziiqZbu6kYcRTEVQuV_RGPhChk8oTnc",
     "https://arweave.net/VoJ1Wx6xTflalopLxOuj7TpO8pC0urYB-vLiZ1FxYno",
     "https://arweave.net/33wa-6hW_vQAbkQ4a5ZXX7HGJMGR3M8ej-z9dvcnJ8k",
         ]);
-        map.insert(ptypes::PORTRAIT, vec![
+        map.insert(vcats::PORTRAIT, vec![
     "https://rsigfpny3j3uwohxfeo7tdkdvw6yhaefxt6d3uq7kajtpaqtdfwq.arweave.net/jJBivbjad0s49ykd-Y1Drb2DgIW8_D3SH1ATN4ITGW0",
     "https://arweave.net/fo--Wlh83Ka83zVQqliiwFq_4zbc1H7vrZNlvA_Gkek",
     "https://arweave.net/1oDuE6UNrNC4Y_aNfhp_Vde_II2ZIFsuRT1hBYbRydc",
     "https://arweave.net/M7uwpTyRIZIohXBgIZUqoYDyxq1GyH3fkoT7CvN2iLE",
         ]);
-        map.insert(ptypes::MONEY, vec![
+        map.insert(vcats::MONEY, vec![
     "https://rj32ukhcq4hdq7nux3rntp5ffdk3ff2kzjcalpy3mc7batjytoza.arweave.net/ineqKOKHDjh9tL7i2b-lKNWyl0rKRAW_G2C-EE04m7I",
     "https://b2zjlf2zplj5we2bdar6p6smu3o6fdu7o7ed23takt63lck6peoq.arweave.net/DrKVl1l609sTQRgj5_pMpt3ijp93yD1uYFT9tYleeR0",
     "https://arweave.net/q8RPmg2qf6nfE4Gc1at7bqOBuWbSsEtzxvdICb1NYzk",
@@ -94,7 +94,7 @@ lazy_static! {
     // pool of possible harvests, sorted by plant type
     pub static ref H_POOL: HashMap<u8, Vec<&'static str>> = {
         let mut map = HashMap::new();
-        map.insert(ptypes::ORACLE, vec![
+        map.insert(vcats::ORACLE, vec![
     "https://arweave.net/v63RbTVHhGKr7UNMmwMjBtKepk1I26UB4yxPhJVSkcg",
     "https://arweave.net/hvOKZAw3miEA8BE4VewzH9io4fNsSWyZpGZaSmhr-l8",
     "https://arweave.net/B_c8uZaUFIA8hjLDVr3v4IR6aRT-zzvCaE0cqWgVURc",
@@ -107,7 +107,7 @@ lazy_static! {
     "https://arweave.net/eQQKfobStzP8dHIzbXYjJCMKQR1owIZ5ljjwX3xvz7I",
     "https://arweave.net/eYJ3Ie8K3sVwvXSH5xtXtyi8PizJCzkXK4n7MCCMunE", // Oracle Voucher, by Oculardelusion
         ]);
-        map.insert(ptypes::PORTRAIT, vec![
+        map.insert(vcats::PORTRAIT, vec![
     "https://arweave.net/tmOUL9xwL8LQb_E5kOldLaF0mrZLg9rSMYpoTGgdkU8",
     "https://arweave.net/tvCQax-rq-oDvRdy-QnBp5orrjSP04Y-dNxXC3maTkI",
     "https://arweave.net/CJyoNeeDM_Vco0l4-7y434_pe4hBhWEE9vvh5XqMd4k",

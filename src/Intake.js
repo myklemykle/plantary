@@ -4,7 +4,7 @@ import ReactDOM from 'react-dom'
 import Modal from 'react-bootstrap/Modal'
 import Button from 'react-bootstrap/Button'
 import { connect, Contract, keyStores } from 'near-api-js'
-import { login, logout, vtypes, vnames, ptypes, pnames, initContract } from './utils'
+import { login, logout, vtypes, vnames, vcats, pnames, initContract } from './utils'
 import { AccountOrWallet, WalletLink } from './walletComponents'
 import getConfig from './config'
 
@@ -22,7 +22,7 @@ class SeedTable extends React.Component {
 				sid: 666,
 				name: 'arty',
 				vtype: 1,
-				vsubtype: 2,
+				vcat: 2,
 				artist: 'painter of light'
 			}]
 			*/
@@ -72,7 +72,7 @@ class SeedTable extends React.Component {
 					<td><img src={s.image} style={{height: "50px"}} class="seed-image" /></td>
 					<td>{s.name}</td>
 					<td>{vnames.en[s.vtype] }</td>
-					<td>{pnames.en[s.vsubtype ]}</td>
+					<td>{pnames.en[s.vcat ]}</td>
 					<td>{s.artist}</td>
 					<td>{s.rarity}</td>
 					<td><a href={s.meta_url}>{s.meta_url}</a></td>
@@ -247,8 +247,8 @@ class Intake extends React.Component {
 						trait_type: "vtype",
 						value: formObj.vtype
 					}, {
-						trait_type: "vsubtype",
-						value: formObj.vsubtype
+						trait_type: "vcat",
+						value: formObj.vcat
 					}, {
 						trait_type: "artist",
 						value: formObj.artist
@@ -280,7 +280,7 @@ class Intake extends React.Component {
 			//
 			var seedid = await window.contract.create_seed({
 				vtype: parseInt(formObj.vtype),
-				vsubtype: parseInt(formObj.vsubtype),
+				vcat: parseInt(formObj.vcat),
 				meta_url: meta_url,
 				rarity: parseInt(formObj.rarity), 
 				// edition: parseInt(formObj.edition), // not in form yet
@@ -347,9 +347,9 @@ class Intake extends React.Component {
 										</div>
 									</div>
 									<div class="form-group row">
-										<label for="vsubtype" class="col-3 col-form-label">Type</label> 
+										<label for="vcat" class="col-3 col-form-label">Type</label> 
 										<div class="col-9">
-											<select class="form-control" id="vsubtype" name="vsubtype">
+											<select class="form-control" id="vcat" name="vcat">
 												<option>Choose ...</option>
 												<option value="1">Oracle</option>
 												<option value="2">Portrait</option>
