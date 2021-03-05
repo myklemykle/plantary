@@ -1,8 +1,6 @@
 #!/bin/zsh
 
-#export NEAR_TARGET="beta"
-export NEAR_TARGET="development"
-. ./.env # project env
+. ./.env || exit 1 # project env
 
 declare -A vtypes
 vtypes[PLANT]=1
@@ -21,8 +19,7 @@ ptypes[SEED]=6
 
 #create_seed vtype, ptype, meta_url, rarity, edition){
 create_seed(){
-  #npx near call --accountId $ADMIN_ID $CONTRACT_NAME 'create_seed' "{\"vtype\": $1, \"vsubtype\": $2, \"meta_url\": \"$3\", \"rarity\":$4, \"edition\": $5}" 
-  echo npx near call --accountId $ADMIN_ID $CONTRACT_NAME 'create_seed' "{\"vtype\": $1, \"vsubtype\": $2, \"meta_url\": \"$3\", \"rarity\":$4, \"edition\": $5}" 
+  npx near call --accountId $ADMIN_ID $CONTRACT_NAME 'create_seed' "{\"vtype\": $1, \"vsubtype\": $2, \"meta_url\": \"$3\", \"rarity\":$4, \"edition\": $5}" 
 }
 
 
