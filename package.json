@@ -7,7 +7,7 @@
 		"test": "yarn test:unit:rs",
 			"test:unit:rs": "(cd contracts/rust && cargo test -- --nocapture --color always)",
 
-		"build": "npm run build:contract && npm run build:web",
+		"build": ". ./.env && npm run build:contract && npm run build:web",
 			"build:contract": "(cd contracts/rust && ./build.sh)",
 			"build:web": "npm run build:index && npm run build:intake",
 				"build:index": ". ./.env && parcel build src/index.html --public-url ./",
