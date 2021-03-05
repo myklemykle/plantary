@@ -3,34 +3,45 @@
   "version": "0.2.0",
   "license": "UNLICENSED",
   "scripts": {
-    "test": "yarn test:unit:rs",
-    "test:unit:rs": "(cd contracts/rust && cargo test -- --nocapture --color always)",
-    "build": "npm run build:contract && npm run build:web",
-    "build:contract": "(cd contracts/rust && ./build.sh)",
-    "build:rs": "npm run build:contract",
-    "build:web": "npm run build:index && npm run build:intake",
-    "build:index": "env-cmd parcel build src/index.html --public-url ./",
-    "build:intake": "env-cmd parcel build src/intake.html --public-url ./",
-    "dev:deploy": "npm run build:contract && npm run dev:deploy:contract && env-cmd -f ./neardev/dev-account.env  npm run build:web && npm run dev",
+
+		"test": "yarn test:unit:rs",
+			"test:unit:rs": "(cd contracts/rust && cargo test -- --nocapture --color always)",
+
+		"build": "npm run build:contract && npm run build:web",
+			"build:contract": "(cd contracts/rust && ./build.sh)",
+			"build:web": "npm run build:index && npm run build:intake",
+				"build:index": ". ./.env && parcel build src/index.html --public-url ./",
+				"build:intake": ". ./.env && parcel build src/intake.html --public-url ./",
+
+    "deploy": "npm run deploy:contract && npm run deploy:pages",
+			"deploy:contract": ". ./.env && near deploy",
+			"deploy:pages": ". ./.env && test -s \"$RSYNC_TARGET\" && rsync -v dist/* $RSYNC_TARGET",
+
+
+
+
+
+    "dev:deploy": "export NEAR_TARGET='development'; . ./.env && npm run build:contract && npm run dev:deploy:contract && npm run build:web && npm run dev",
+
     "dev:delete:contract": "near delete `cat ./neardev/dev-account` mykletest.testnet && rm -r ./neardev",
     "dev:init:contract": "near call --accountId mykletest.testnet `cat ./neardev/dev-account` new '{\"owner_id\": \"mykletest.testnet\"}' ",
     "dev:deploy:contract": "npx near dev-deploy",
-    "dev:redeploy:contract": "env-cmd -f ./neardev/dev-account.env  npm run dev:delete:contract && npm run dev:deploy:contract && npm run dev:init:contract",
+    "dev:redeploy:contract": "export NEAR_TARGET='development';. ./.env && npm run dev:delete:contract && npm run dev:deploy:contract && npm run dev:init:contract",
     "dev": "nodemon --watch assembly -e ts --exec \"npm run start\"",
-    "start": "echo The app is starting! It will automatically open in your browser when ready && env-cmd -f ./neardev/dev-account.env  parcel src/index.html --open",
-    "deploy": "npm run build && npm run deploy:contract && npm run deploy:pages",
-    "deploy:contract": "near deploy",
-    "deploy:pages": "rsync -v dist/* plantary@blachly.dreamhost.com:plantary.y0b.link/",
+
+    "start": "export NEAR_TARGET='development'; echo The app is starting! It will automatically open in your browser when ready && . ./.env && parcel src/index.html --open",
+
     "prestart": "npm run build:contract && npm run dev:deploy:contract",
+
     "check_env": "test -n \"$BETA_CONTRACT_NAME\" ### \". ./.env\" in base directory to load important config!",
-    "push:beta": "npm run check_env && npm run build && rsync dist/* $BETA_RSYNC_TARGET",
-    "deploy:beta": "npm run check_env && npm run deploy && rsync dist/* $BETA_RSYNC_TARGET"
+
+    "push:beta": "export NEAR_TARGET='beta'; . ./.env && npm run check_env && npm run build && rsync dist/* $BETA_RSYNC_TARGET",
+    "deploy:beta": "export NEAR_TARGET='beta'; . ./.env && npm run check_env && npm run deploy && rsync dist/* $BETA_RSYNC_TARGET"
   },
   "devDependencies": {
     "@babel/preset-env": "^7.9.5",
     "@babel/preset-react": "^7.9.4",
     "babel-jest": "^26.0.0",
-    "env-cmd": "^10.1.0",
     "eslint": "^7.11.0",
     "eslint-plugin-react": "^7.21.4",
     "gh-pages": "^3.0.0",
