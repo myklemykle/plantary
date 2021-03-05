@@ -60,19 +60,19 @@ impl Veggie {
 
 // this is the external, JSON-compatible version for method calls.  (u64s are strings.)
 
-pub type TokenJSON = json_types::U64;
+pub type TokenU64 = json_types::U64;
 
 #[derive(PartialEq, Clone, Debug, Serialize, BorshDeserialize, BorshSerialize)]
-pub struct VeggieJSON {
-    pub vid: TokenJSON,
+pub struct VeggieU64 {
+    pub vid: TokenU64,
     pub vtype: VeggieType,
     pub vcat: VeggieCategory,
-    pub parent: TokenJSON,
+    pub parent: TokenU64,
     pub dna: json_types::U64,
     pub meta_url: String,
 }
 
-impl From<Veggie> for VeggieJSON {
+impl From<Veggie> for VeggieU64 {
     fn from(v: Veggie) -> Self {
         Self {
             vid: v.vid.into(),
@@ -86,8 +86,8 @@ impl From<Veggie> for VeggieJSON {
 }
 
 // I thought Rust would give me this for free ...
-impl From<VeggieJSON> for Veggie {
-    fn from(v: VeggieJSON) -> Self {
+impl From<VeggieU64> for Veggie {
+    fn from(v: VeggieU64) -> Self {
         Self {
             vid: v.vid.into(),
             vtype: v.vtype,
@@ -100,17 +100,17 @@ impl From<VeggieJSON> for Veggie {
 }
 
 pub trait Veggies {
-    fn get_veggie_json(&self, vid_json: TokenJSON) -> VeggieJSON;
+    fn get_veggie_u64(&self, vid_u64: TokenU64) -> VeggieU64;
     fn count_owner_veggies(&self, owner_id: AccountId, vtype: VeggieType) -> u64;
-    fn get_owner_veggies_page_json(&self, owner_id: AccountId, vtype: VeggieType, page_size: u16, page: u16) -> Vec<VeggieJSON>;
+    fn get_owner_veggies_page_u64(&self, owner_id: AccountId, vtype: VeggieType, page_size: u16, page: u16) -> Vec<VeggieU64>;
 
-    fn mint_plant_json(&mut self, 
+    fn mint_plant_u64(&mut self, 
                     vcat: VeggieCategory,
-                    )->VeggieJSON;
+                    )->VeggieU64;
 
-    fn delete_veggie_json(&mut self, vid_json: TokenJSON);
+    fn delete_veggie_u64(&mut self, vid_u64: TokenU64);
 
-    fn harvest_plant_json(&mut self, parent_id: TokenJSON) -> VeggieJSON;
+    fn harvest_plant_u64(&mut self, parent_id: TokenU64) -> VeggieU64;
 }
 
 // public veggies implementation
@@ -137,30 +137,30 @@ impl Veggies for PlantaryContract {
         count
     }
 
-    fn get_veggie_json(&self, vid: TokenJSON) -> VeggieJSON {
+    fn get_veggie_u64(&self, vid: TokenU64) -> VeggieU64 {
         self.get_veggie(vid.into()).into()
     }
 
-    fn delete_veggie_json(&mut self, vid: TokenJSON){
+    fn delete_veggie_u64(&mut self, vid: TokenU64){
         self.delete_veggie(vid.into()).into()
     }
 
     #[payable]
-    fn harvest_plant_json(&mut self, parent_id_json: TokenJSON) -> VeggieJSON {
+    fn harvest_plant_u64(&mut self, parent_id_u64: TokenU64) -> VeggieU64 {
         // confirm that we were paid the right amount:
-        let parent_id = TokenId::from(parent_id_json);
+        let parent_id = TokenId::from(parent_id_u64);
         let parent = self.get_veggie(parent_id);
         self.paid_up(H_PRICES[parent.vcat as usize]);
 
         self.harvest_plant(parent_id).into()
     }
 
-    fn get_owner_veggies_page_json(&self, owner_id: AccountId, vtype: VeggieType, page_size: u16, page: u16) -> Vec<VeggieJSON> {
-        self.get_owner_veggies_page(owner_id, vtype, page_size, page).iter().map(|v| VeggieJSON::from(v.clone())).collect()
+    fn get_owner_veggies_page_u64(&self, owner_id: AccountId, vtype: VeggieType, page_size: u16, page: u16) -> Vec<VeggieU64> {
+        self.get_owner_veggies_page(owner_id, vtype, page_size, page).iter().map(|v| VeggieU64::from(v.clone())).collect()
     }
 
     #[payable]
-    fn mint_plant_json(&mut self, vcat: VeggieCategory) -> VeggieJSON {
+    fn mint_plant_u64(&mut self, vcat: VeggieCategory) -> VeggieU64 {
         // TODO: only putting this here for now because I haven't figured out how to unit test payments properly ...
         // confirm that we were paid the right amount
         self.paid_up(P_PRICES[vcat as usize]);
@@ -646,13 +646,13 @@ impl PlantaryContract {
     }
 
 
-    pub fn get_owner_tokens(&self, owner_id: &AccountId) -> Vec<TokenJSON> {
-        self.token_bank.get_owner_tokens(&owner_id).iter().map(|t| TokenJSON::from(t)).collect()
+    pub fn get_owner_tokens(&self, owner_id: &AccountId) -> Vec<TokenU64> {
+        self.token_bank.get_owner_tokens(&owner_id).iter().map(|t| TokenU64::from(t)).collect()
     }
 
     // debug 
-    pub fn get_veggie_keys(&self) -> Vec<TokenJSON> {
-        self.veggies.keys().map(|i| TokenJSON::from(i)).collect()
+    pub fn get_veggie_keys(&self) -> Vec<TokenU64> {
+        self.veggies.keys().map(|i| TokenU64::from(i)).collect()
     }
 
 }
@@ -1082,7 +1082,7 @@ mod tests {
     #[should_panic(
         expected = r#"Veggie does not exist."#
     )]
-    fn create_get_delete_veggie_json(){
+    fn create_get_delete_veggie_u64(){
         testing_env!(get_context(robert(), 0));
         let mut contract = PlantaryContract::new(robert());
         load_default_seeds(&mut contract);
@@ -1092,14 +1092,14 @@ mod tests {
         assert_eq!(v.vtype, vtypes::PLANT, "vtype not saved");
         assert_eq!(v.vcat, vcats::MONEY, "vcat not found.");
             // find?
-        let vid_json = TokenJSON::from(v.vid);
+        let vid_u64 = TokenU64::from(v.vid);
             // confirm
-        let _foundv: Veggie = contract.get_veggie_json(vid_json.clone()).into(); // should not panic
+        let _foundv: Veggie = contract.get_veggie_u64(vid_u64.clone()).into(); // should not panic
         assert_eq!(v, _foundv, "veggie did not fetch right");
             // delete
-        contract.delete_veggie_json(vid_json.clone()); 
+        contract.delete_veggie_u64(vid_u64.clone()); 
             // confirm deleted
-        let _nov = contract.get_veggie_json(vid_json); // should panic
+        let _nov = contract.get_veggie_u64(vid_u64); // should panic
     }
 
     #[test]

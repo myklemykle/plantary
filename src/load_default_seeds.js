@@ -23,13 +23,13 @@ var account = walletConnection.account();
   // Initializing our contract APIs by contract name and configuration
 const contract = await new Contract(account, nearConfig.contractName, {
     // View methods are read only. They don't modify the state, but usually return some value.
-    // viewMethods: ['get_owner_veggies_page_json'],
+    // viewMethods: ['get_owner_veggies_page_u64'],
     // some debugging stuff added:
     viewMethods: [
-      'get_owner_veggies_page_json',
+      'get_owner_veggies_page_u64',
       'get_tokens_page',
       'get_veggies_page',
-      'get_veggie_json',
+      'get_veggie_u64',
       'get_owner_tokens',
       'get_token_owner',
       // seed admin:
@@ -38,8 +38,8 @@ const contract = await new Contract(account, nearConfig.contractName, {
     ],
     // Change methods can modify the state. But you don't receive the returned value when called.
     changeMethods: [
-      'mint_plant_json',
-      'harvest_plant_json',
+      'mint_plant_u64',
+      'harvest_plant_u64',
       // seed admin:
       'create_seed',
       'update_seed',
