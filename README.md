@@ -4,7 +4,7 @@ Grow plants and harvest NFTs
 **Demo video:** https://youtu.be/e5VeB9FThwA
 -
 
-**Live Demo:** http://plantary.y0b.link/
+**Live Demo:** https://beta.plantary.art/
 -
 
 ![](https://i.imgur.com/i0avWYf.png)
